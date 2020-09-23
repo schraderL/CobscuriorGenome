@@ -1,0 +1,195 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+---
+
+This script is used to filter the gff file containing the different TE flags.
+### Load data
+```{r}
+library(ggplot2)
+gfffile<-"/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/annotation/Cobs.alpha.v.2.1.geneCombined/tmp/Cobs.alpha.v.2.1.geneannotation.1.3.TEflags.gff3"
+gff<-ape::read.gff(gfffile)
+gff$phase<-as.character(gff$phase)
+gff$phase[is.na(gff$phase)]<-"."
+
+gff$score<-as.character(gff$score)
+gff$score[is.na(gff$score)]<-"."
+
+
+gene<-subset(gff,type=="gene")
+mRNA<-subset(gff,type=="mRNA")
+exon<-subset(gff,type=="exon")
+
+head(mRNA)
+
+```
+
+### extract attributes
+```{r}
+mRNA$parent<-as.factor(gsub(pattern = ".*Parent=(.*?)(;.*|$)",replacement = "\\1",perl = T,x = mRNA$attributes))
+mRNA$ID<-as.factor(gsub(pattern = "[^gene]*ID=(.*?)(;.*|$)",replacement = "\\1",perl = T,x = mRNA$attributes))
+
+mRNA$tie<-as.numeric(gsub(pattern = ".*tie=(.*?)(;.*|$)",replacement = "\\1",perl = T,x = mRNA$attributes))
+mRNA$avgCov<-as.numeric(gsub(pattern = ".*avgCov=(.*?)(;.*|$)",replacement = "\\1",perl = T,x = mRNA$attributes))
+mRNA$minCov<-as.numeric(gsub(pattern = ".*minCov=(.*?)(;.*|$)",replacement = "\\1",perl = T,x = mRNA$attributes))
+
+mRNA$tpc<-as.numeric(gsub(pattern = ".*tpc=(.*?)(;.*|$)",replacement = "\\1",perl = T,x = mRNA$attributes))
+mRNA$funAnTE<-as.factor(gsub(pattern = ".*functionalAnnotationTE=(.*?)(;.*|$)",replacement = "\\1",perl = T,x = mRNA$attributes))
+mRNA$funAn<-as.factor(gsub(pattern = ".*functionalAnnotation=(.*?)(;.*|$)",replacement = "\\1",perl = T,x = mRNA$attributes))
+mRNA$repbasematch<-as.factor(gsub(pattern = ".*repbasematch=(.*?)(;.*|$)",replacement = "\\1",perl = T,x = mRNA$attributes))
+mRNA$repeatoverlap<-as.factor(gsub(pattern = ".*repeatoverlap=(.*?)(;.*|$)",replacement = "\\1",perl = T,x = mRNA$attributes))
+mRNA$complete<-as.factor(gsub(pattern = ".*complete=(.*?)(;.*|$)",replacement = "\\1",perl = T,x = mRNA$attributes))
+mRNA$startAA<-as.factor(gsub(pattern = ".*start=(.*?)(;.*|$)",replacement = "\\1",perl = T,x = mRNA$attributes))
+mRNA$stopAA<-as.factor(gsub(pattern = ".*stop=(.*?)(;.*|$)",replacement = "\\1",perl = T,x = mRNA$attributes))
+
+mRNA$avgCov[mRNA$avgCov<0]<-NA
+mRNA$expressed<-"true"
+mRNA$expressed[mRNA$avgCov<=10]<-"false"
+mRNA$expressed<-as.factor(mRNA$expressed)
+# calculate median
+mRNA$avgCov2<-mRNA$avgCov/median(mRNA$avgCov,na.rm=T)
+```
+
+### create overview plots
+```{r}
+
+# combine
+mRNA$combine<-paste("funAnTE=",mRNA$funAnTE,";RepBase=",mRNA$repbasematch,";overlap=",mRNA$repeatoverlap,sep="")
+g<-ggplot(mRNA, aes(x=combine, y=avgCov2,fill =combine)) + 
+  geom_violin()+scale_y_log10()+
+  theme(axis.text.x = element_blank())
+g
+```
+
+### Define TEevidence attribute and subset gffs
+```{r}
+
+# filter genes based on some traits
+# exploring data
+#subset(mRNA,funAnTE=="true" & repbasematch=="false" & repeatoverlap =="true",c(seqid,start,stop,tie,avgCov,avgCov2,funAnTE,repbasematch,repeatoverlap,parent,ID))
+
+# expression is less than 0.75 of median
+#avgCov2<0.75
+
+# combination of TE annotation is either of the following
+mRNA$TEevidence<-0
+mRNA$TEevidence[mRNA$funAnTE=="true" & mRNA$repbasematch=="true" & mRNA$repeatoverlap=="true"]<-3
+
+mRNA$TEevidence[mRNA$funAnTE=="true" & mRNA$repbasematch=="true" & mRNA$repeatoverlap=="false"]<-2
+mRNA$TEevidence[mRNA$funAnTE=="true" & mRNA$repbasematch=="false" & mRNA$repeatoverlap=="true"]<-2
+mRNA$TEevidence[mRNA$funAnTE=="false" & mRNA$repbasematch=="true" & mRNA$repeatoverlap=="true"]<-2
+
+mRNA$TEevidence[mRNA$funAnTE=="true" & mRNA$repbasematch=="false" & mRNA$repeatoverlap=="false"]<-1
+mRNA$TEevidence[mRNA$funAnTE=="false" & mRNA$repbasematch=="true" & mRNA$repeatoverlap=="false"]<-1
+mRNA$TEevidence[mRNA$funAnTE=="false" & mRNA$repbasematch=="false" & mRNA$repeatoverlap=="true"]<-1
+
+mRNA$TEevidence<-as.factor(mRNA$TEevidence)
+#funAnTE="false", repbasematch="true", repeatoverlap="true"  #2
+```
+
+### plot TE evidence vs expression
+```{r}
+
+#subset(mRNA,funAnTE=="true" & repbasematch=="false" & repeatoverlap =="true")
+g2<-ggplot(mRNA, aes(x=TEevidence, y=avgCov2,fill =TEevidence)) + 
+  geom_violin()+scale_y_log10()
+g2
+
+summary(mRNA$TEevidence)
+```
+
+### summary
+```{r}
+
+TEproteins<-subset(mRNA,TEevidence != 0 & avgCov2<0.9)
+Cobsproteins<-subset(mRNA,TEevidence == 0 | avgCov2>=0.9)
+#Cobsproteins<-subset(mRNA,TEevidence == 0 & avgCov2>=0.1)
+Badproteins<-subset(mRNA,avgCov<=0 & funAn=="false")
+length(unique(mRNA$parent))
+length(unique(TEproteins$parent))
+length(unique(Cobsproteins$parent))
+
+
+goodGenes<-mRNA[!mRNA$parent %in% unique(TEproteins$parent),]
+length(unique(goodGenes$parent))
+#TEproteins[TEproteins$avgCov2==max(TEproteins$avgCov2),]
+#Cobsproteins[Cobsproteins$avgCov2==min(Cobsproteins$avgCov2,na.rm=T),]
+
+
+```
+There are 30874 genes predicted in the genome. Of these 9908 have at least one mRNA that is identified as potentially TE-derived. There remain 20966 proteins as proper ant genes.
+
+```{r}
+
+head(gene)
+gene$ID<-as.factor(gsub(pattern = "[^gene]*ID=(.*?)(;.*|$)",replacement = "\\1",perl = T,x = gene$attributes))
+# calculate which genes to keep
+genes2keep<-data.frame(gene$ID[!gene$ID %in% unique(TEproteins$parent)])
+colnames(genes2keep)[1]<-"geneID"
+#write.table(genes2keep,"/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/TEprotein.screen/genes2keep.tsv",quote=F, row.names=F,col.names=F)
+
+```
+
+# Create an updated gff
+```{r}
+gff$ID<-as.factor(gsub(pattern = "[^gene]*ID=(.*?)(;.*|$)",replacement = "\\1",perl = T,x = gff$attributes))
+gff$keep=""
+gff$keep[gff$type == "gene"]<-";keep=false"
+gff$keep[gff$ID %in% genes2keep$geneID]<-";keep=true"
+gff$attributes2<-paste(gff$attributes,gff$keep,sep="")
+gffNew<-gff[,c(1:8,12)]
+colnames(gffNew)[9]<-"attributes"
+
+
+#rtracklayer::export.gff3(gffNew,"/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/annotation/Cobs.alpha.v.2.1.geneCombined/test.gff3")
+
+#write.table(gffNew,"/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/annotation/Cobs.alpha.v.2.1.geneCombined/Cobs.alpha.v.2.1.geneannotation.1.3.TEflags2.gff3",col.names=F,quote=F,row.names=F,sep="\t")
+```
+
+<!--
+```{r}
+
+# Rename gene ids
+
+library(dplyr)
+library(stringr)
+
+gene$newID<-  gsub(pattern = "gene_([0-9]+)",replacement = "\\1",gene$ID,perl=T) %>% str_pad(., width=5, side="left", pad="0") %>% gsub(pattern = "([0-9]+)",replacement = "Cobs_\\1",perl=T) 
+mRNA$newparent<-  gsub(pattern = "gene_([0-9]+)",replacement = "\\1",mRNA$parent,perl=T) %>% str_pad(., width=5, side="left", pad="0") %>% gsub(pattern = "([0-9]+)",replacement = "Cobs_\\1",perl=T) 
+
+gsub(pattern = "ID=gene_([0-9]+?);",replacement = paste("ID=Cobs_",str_pad("\\1",1,"left",0),";",sep = ""),gene$attributes,perl=T)%>% head(.)
+mRNA$attributes2<-gsub(pattern = "Parent=gene_([0-9]+?);",replacement = paste("Parent=Cobs_",str_pad("\\1",1,"left",0),";",sep = ""),mRNA$attributes,perl=T)
+
+
+
+#this is maybe more general, with data.table
+require(data.table)
+df<-morley[,c(2,3)]
+dt<-as.data.table(df)
+dt[,index:=seq_along(Speed),by=Run]
+dt<-as.data.table(mRNA)
+
+dt[,index:=seq_along(ID),by=newparent]
+mRNA2<-as.data.frame(dt)
+
+
+head(exon,30)
+exon$parent<-as.factor(gsub(pattern = ".*Parent=(.*?)(;.*|$)",replacement = "\\1",perl = T,x = exon$attributes))
+exon$ID<-as.factor(gsub(pattern = "[^gene]*ID=(.*?)(;.*|$)",replacement = "\\1",perl = T,x = exon$attributes))
+
+```
+
+```{r}
+exonCount<-as.data.frame(table(exon$parent))
+colnames(exonCount)[2]<-"exonCount"
+mRNA2<-merge(mRNA,exonCount,by.x="ID",by.y="Var1")
+head(mRNA2)
+sum(exonCount$exonCount==1)
+
+singleExon<-subset(mRNA2,exonCount==1)
+boxplot(singleExon$avgCov2,mRNA$avgCov2,outline=F)
+singleExon[singleExon$avgCov2==max(singleExon$avgCov2),]
+```
+

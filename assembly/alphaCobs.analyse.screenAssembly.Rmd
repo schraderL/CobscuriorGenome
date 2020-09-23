@@ -1,0 +1,138 @@
+
+# Switch to R
+# Load blast-based analyses
+* blastn vs ant database (all 48 ant genomes)
+* blastn vs prok database (2422 complete bacterial genomes)
+* blastn vs insect database (high quality complete genomes)
+* barr
+```{r}
+eukRNA<-read.csv("/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/screenAssembly/euk.rRNA.gff3",sep='\t',header=F)
+bacRNA<-read.csv("/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/screenAssembly/pro.rRNA.gff3",sep='\t',header=F)
+ants<-read.csv("/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/screenAssembly/genome.vs.Antgenomes.bls",sep='\t',header=F)
+insects<-read.csv("/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/screenAssembly/genome.vs.InsectGenomes.bls",sep='\t',header=F)
+bac<-read.csv("/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/screenAssembly/genome.vs.2422genomes.bls",sep='\t',header=F)
+
+# scaffold83 Wolbachia
+# scaffold131 rRNA
+# scaffold36 Westeberhardia
+# scaffold37 Wolbachia
+# scaffold105 rRNA
+# scaffold51 Wolbachia
+# scaffold27 rRNA
+
+```
+
+# Filter results based on evalues against different databases
+```{r}
+library(dplyr)
+colnames(eukRNA)<-c("qseqid","eukRNA.source","eukRNA.type","eukRNA.start","eukRNA.end","eukRNA.eval","eukRNA.strand","eukRNA.frame","eukRNA.att")
+colnames(bacRNA)<-c("qseqid","proRNA.source","proRNA.type","proRNA.start","proRNA.end","proRNA.eval","proRNA.strand","proRNA.frame","proRNA.att")
+colnames(ants)<-c("qseqid",paste("ants.",c("qstart","qend","sseqid","sstart","send","evalue","bitscore","length","pident","sgi","sacc","stitle"),sep=""))
+colnames(insects)<-c("qseqid",paste("insects.",c("qstart","qend","sseqid","sstart","send","evalue","bitscore","length","pident","sgi","sacc","stitle"),sep=""))
+colnames(bac)<-c("qseqid",paste("bac.",c("qstart","qend","sseqid","sstart","send","evalue","bitscore","length","pident","sgi","sacc","stitle"),sep=""))
+
+insects<-distinct(insects[order(insects$insects.evalue),],qseqid,.keep_all= TRUE)
+ants<-distinct(ants[order(ants$ants.evalue),],qseqid,.keep_all= TRUE)
+bac<-distinct(bac[order(bac$bac.evalue),],qseqid,.keep_all= TRUE)
+
+all<-merge(eukRNA,bacRNA,by="qseqid", all.x = T,all.y=T) %>% 
+  merge(.,ants,by="qseqid", all.x = T,all.y=T) %>% 
+  merge(.,insects,by.y="qseqid", all.x = T,all.y=T) %>%
+  merge(.,bac,by.y="qseqid", all.x = T,all.y=T)
+
+
+all2<-all[,c("qseqid","eukRNA.eval","proRNA.eval","ants.evalue","ants.pident","insects.evalue","insects.pident","bac.evalue","bac.pident","eukRNA.att","proRNA.att","ants.stitle","insects.stitle","bac.stitle")]
+```
+
+## remove all that are more similar to a eukaryotic than a prokaryotic rRNA
+```{R}
+all3<-subset(all2,eukRNA.eval>proRNA.eval|is.na(eukRNA.eval))
+all3$scaffold<-gsub(":.*","",all3$qseqid,perl=T)
+all3$start<-as.numeric(gsub(".*:(.*)-.*","\\1",all3$qseqid,perl=T))
+all3$end<-as.numeric(gsub(".*:.*-(.*)","\\1",all3$qseqid,perl=T))
+
+all3<-all3[order(all3$scaffold,all3$start,decreasing = F),]
+#write.table(all3,"/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/screenAssembly/all.bls.tsv",sep='\t',quote=F,row.names=F)
+
+```
+
+
+# Remove all that are more similar to the insect db than to bacteria
+```{r}
+## Filter only those that have a better eval against bacteria than against insects
+all4<-(subset(all3,bac.evalue<insects.evalue|is.na(insects.evalue)))
+```
+
+# Identify rate of "bacterial windows" across entire chromosome
+```{r}
+GC<-read.csv("/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/screenAssembly/genome.GC.tsv",sep="\t")
+windowCount<-read.csv("/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/screenAssembly/genome.windows.tsv",sep="\t",F)
+
+windows<-windowCount %>% 
+          group_by(V1) %>%
+          summarise(no_rows = length(V1))
+colnames(windows)<-c("scaffold","windowCount")
+colnames(GC)[1]<-"scaffold"
+colnames(GC)[3]<-"GC"
+all5<-merge(all4,GC,by.x="scaffold",by.y="scaffold") 
+#write.table(all5,"/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/screenAssembly/prokaryotic.bls.tsv",sep='\t',quote=F,row.names=F)
+
+
+
+bacWindowCount<-all5 %>% 
+    group_by(scaffold) %>%
+    summarise(no_rows = length(scaffold))
+colnames(bacWindowCount)<-c("scaffold","bacWindows")
+coverage<-read.csv("/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/results/QualiMap/Coverage.per.scaffold.tsv",sep="\t",F)
+colnames(coverage)<-c("name","length","mappedBases","meanCov","SD")
+sumAll<-merge(GC,bacWindowCount,by.x="scaffold",by.y="scaffold",all.y=T) %>% merge(.,coverage,by.x="scaffold",by.y="name",all.x=T) %>% merge(.,windows,by.x="scaffold",by.y="scaffold",all.x=T)
+sumAll$ratio<-sumAll$bacWindows/sumAll$windowCount
+sumAll
+
+
+```
+```{r}
+library(ggplot2)
+library(ggrepel)
+
+
+bacMatch<-list()
+bm<-factor()
+scf<-factor()
+for (i in unlist(subset(sumAll,ratio>.1,scaffold))){
+  bacMatch[[i]]<-subset(all5,scaffold==as.character(i)) %>% 
+          group_by(bac.stitle) %>%
+          summarise(no_rows = length(bac.stitle))
+bacMatch[[i]]<-bacMatch[[i]][order(bacMatch[[i]]$no_rows,decreasing = T),]
+bm<-c(bm,as.character(data.frame(bacMatch[[i]][1,1])$bac.stitle[1]))
+scf<-c(scf,i)
+}
+labelBac<-data.frame(scaffold=scf,hit=gsub(".*? (.*?) .*","\\1",bm,perl=T))
+sumAll<-merge(sumAll,labelBac,by="scaffold",all.x=T)
+sumAll$tag<-apply(sumAll[,c("scaffold","hit")],1,paste,collapse="\n")
+```
+```{R}
+ggplot(sumAll, aes(x=GC, y=ratio,color=meanCov)) + 
+  geom_point(aes(size=length/1000000),alpha=.25)+
+  theme_bw()+
+  ylab(label = "% of windows identified as bacterial")+
+  geom_label_repel(data=subset(sumAll,ratio>.2),aes(label = tag,
+                    fill = ratio), color = 'white',
+                    size = 3,guide=FALSE,segment.color="black",show.legend=F,min.segment.length=0)+
+  scale_color_gradient(name = "shortread coverage")+
+  scale_fill_gradient(name = "shortread coverage")
+  
+  
+#dev.print(pdf,"/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/screenAssembly/prokaryotic.scf.pdf",width=8,height=4)
+```
+
+# Identify scaffolds where >50 % of windows are identified as bacterial
+```{R}
+subset(sumAll,ratio>0.5)
+
+# scaffold36 Westeberhardia
+# scaffold37 Wolbachia
+# scaffold51 Wolbachia
+# scaffold83 Wolbachia
+```
+

@@ -1,0 +1,214 @@
+---
+title: "Cobs.alpha.v2.1 TE island plotting"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 2
+    collapsed: true
+    number_sections: true
+    df_print: paged
+  pdf_document: default
+---
+<STYLE TYPE="text/css">
+<!--
+  td{
+    font-family: Arial; 
+    font-size: 8pt;
+    padding:0px;
+    cellpadding="0";
+    cellspacing="0"
+  }
+  th {
+    font-family: Arial; 
+    font-size: 8pt;
+    height: 20px;
+    font-weight: bold;
+    text-align: right;
+    background-color: #ccccff;
+  }
+  table { 
+    border-spacing: 0px;
+    border-collapse: collapse;
+  }
+--->
+</STYLE>
+
+
+```{r}
+source("~/sciebo/librarySchrader.R")
+#BiocManager::install("GenomicRanges")
+#BiocManager::install("rtracklayer")
+#BiocManager::install("ggbio")
+library(rtracklayer)
+library(GenomicRanges)
+library(ggplot2)
+library(cowplot)
+library(zoo)
+library(RColorBrewer)
+```
+
+```{r}
+teisl<-read.csv("/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION//annotation/Cobs.alpha.v.2.1.repeats/Cobs.alpha.v.2.1.TEislands/te_islands.bed",sep="\t",header=F)
+teisl$V1<-as.factor(sprintf("scaffold%04d", as.numeric(gsub(".*?([0-9]+)$","\\1",perl=T,teisl$V1))))
+colnames(teisl)<-c("chromosome","start","stop")#,"content","window","type","type2","windowCenter")
+
+```
+
+
+```{r}
+listOfAllTEs<-list()
+groups<-c("DNA","LTR","LINE","Retro","Unknown","SINE","TEislands")
+for(i in groups){
+  listOfAllTEs[[i]]<-read.csv(paste("/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/analyses/visualizeTEislands/",i,".windows.coverage.bed",sep=""),sep='\t',F)
+  listOfAllTEs[[i]]$V1<-as.factor(sprintf("scaffold%04d", as.numeric(gsub(".*?([0-9]+)$","\\1",perl=T,listOfAllTEs[[i]]$V1))))
+}
+
+genes<-read.csv("/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/analyses/visualizeTEislands/Genes.windows.coverage.bed",sep='\t',F)
+
+genes$V1<-as.factor(sprintf("scaffold%04d", as.numeric(gsub(".*?([0-9]+)$","\\1",perl=T,genes$V1))))
+allGenes<-split(x = genes,f =genes$V1)
+scfOrder<-sort(unlist(lapply(allGenes,function(x) nrow(x))),decreasing = T)
+allGenes<-allGenes[names(scfOrder)]
+
+all<-list()
+for(i in groups){
+  all[[i]]<-split(x = listOfAllTEs[[i]],f =listOfAllTEs[[i]]$V1)
+  all[[i]]<-all[[i]][names(scfOrder)]
+}
+
+```
+
+```{r}
+windowwidth<-20
+windowby<-1
+rollGenes<-lapply(allGenes,function(x) rollapply(data=x$V4,FUN=mean,width=windowwidth,align="center",partial=T,fill=NA,by=windowby))
+
+for(i in 1:length(allGenes)){
+  allGenes[[i]]<-cbind(allGenes[[i]],rollGenes[[i]])
+  colnames(allGenes[[i]])[5]<-"window"
+}
+
+meanContentGenes<-data.frame(unlist(lapply(allGenes,function(x) mean(x$window,na.rm=T))))
+colnames(meanContentGenes)<-"meanC"
+dataGenes<- do.call("rbind", allGenes)
+dataGenes<-dataGenes[  order( dataGenes[,1] ),]
+colnames(dataGenes)<-c("chromosome","start","stop","content","window")
+dataGenes$type<-"host"
+dataGenes$type2<-"exon"
+
+rolls<-list()
+for(i in groups){
+  rolls[[i]]<-lapply(all[[i]],function(x) rollapply(data=x$V4,FUN=mean,width=windowwidth,align="center",partial=T,fill=NA,by=windowby))
+  }
+
+for(p in groups){
+  for(i in 1:length(all[[p]])){
+    all[[p]][[i]]<-cbind(all[[p]][[i]],rolls[[p]][[i]])
+    colnames(all[[p]][[i]])[5]<-"window"
+  }
+}
+
+meanContent<-list()
+data<-list()
+for(i in groups){
+  meanContent[[i]]<-data.frame(unlist(lapply(all[[i]],function(x) mean(x$window,na.rm=T))))
+  colnames(meanContent[[i]])<-"meanC"
+  data[[i]]<- do.call("rbind", all[[i]])
+  data[[i]]<-data[[i]][  order( data[[i]][,1] ),]
+  colnames(data[[i]])<-c("chromosome","start","stop","content","window")
+  data[[i]]$type<-"TE"
+  data[[i]]$type2<-i
+}
+
+data[["TEislands"]]$window2<-0
+data[["TEislands"]]$window2[data[["TEislands"]]$window<0.5]<- NA
+
+data[["TEislands"]]$window<-data[["TEislands"]]$window2
+data[["TEislands"]] <- subset(data[["TEislands"]], select = -c(window2) )
+tmp<-subset(data[["TEislands"]],chromosome=="scaffold0002")
+
+
+
+```
+
+
+
+```{r}
+
+dataTEs<-do.call("rbind", data[groups[groups!="TEislands"]])
+
+data2<-rbind(dataTEs,dataGenes)
+# plot only largest 30 scaffolds
+data2<-subset(data2,chromosome %in% names(scfOrder)[1:5])
+teislSet<-subset(teisl,chromosome %in% names(scfOrder)[1:5])
+data2$type<-as.factor(data2$type)
+
+data2$windowCenter<-rowMeans(cbind(data2$start,data2$stop))
+
+#data2$type3<-"element"
+#data2$type3[data2$type2=="TEislands"]<-"TEislands"
+#data2$type3<-as.factor(data2$type3)
+
+#data3<-subset(data2,!is.na(window))
+data3<-data2
+
+coloring<-brewer.pal(n = 8, name = "Blues")
+data3$window[data3$type=="host"]<- -data3$window[data3$type=="host"]
+data3$type2 <- factor(data3$type2, levels = c("exon","Unknown","SINE","LINE","Retro","LTR","DNA"))
+data3$type <- factor(data3$type, levels = c("TE","host"))
+#data3$type3 <- factor(data3$type3, levels = c("element","TEislands"))
+
+
+p <- ggplot(data = data3, aes(x = start, y = as.numeric(window), fill=type2,col=type2),stroke=0) +
+  geom_area(stat = "identity")
+
+pf<-p + facet_grid(cols=vars(chromosome), scales = 'free', space = 'free_x', switch = 'x') + 
+ theme_classic() + 
+  theme(panel.spacing.x=unit(0.01,"lines"),
+        panel.spacing.y=unit(-1,"lines"),
+        panel.background = element_blank(),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        #panel.spacing = unit(.2, "lines"),
+        #strip.text.x = element_blank()
+        ) +
+  coord_cartesian(ylim=c(-0.5,1))+
+  scale_y_continuous(name="relative content",breaks=c(-0.3,0,0.7),labels=c(0.3,0,0.7))+
+  scale_x_continuous(expand = c(0, 0))+theme(legend.position = "right")+xlab(NULL)+
+  
+  scale_color_manual(values=c(
+                                                                                                                        "DNA"=coloring[7],
+                                                                                                                        "LTR"=coloring[6],
+                                                                                                                        "Retro"=coloring[5],
+                                                                                                                        "LINE"=coloring[4],
+                                                                                                                        "SINE"=coloring[3],
+                                                                                                                        "Unknown"=coloring[2],
+                                                                                                                        "exon"=goodCols[2]
+                                                                                                                        ))+
+  scale_fill_manual(values=c(
+                                                                                                                        "DNA"=addalpha(coloring[7],.5),
+                                                                                                                        "LTR"=addalpha(coloring[6],.5),
+                                                                                                                        "Retro"=addalpha(coloring[5],.5),
+                                                                                                                        "LINE"=addalpha(coloring[4],.5),
+                                                                                                                        "SINE"=addalpha(coloring[3],.5),
+                                                                                                                        "Unknown"=addalpha(coloring[2],.5),
+                                                                                                                        "exon"=addalpha(goodCols[2],.5)
+                                                                                                                        ))
+  
+pf
+
+# annotate TE islands differently
+#data.segm<-data.frame(x=0,y=0.2,xend=1000000,yend=0.2,
+#                      chromosome="scaffold0001")
+#pf2<-pf+    geom_segment(data=data.segm,
+#               aes(x=x,y=y,yend=yend,xend=xend),size=4,inherit.aes=FALSE)
+
+
+pf2<-pf+    geom_segment(data=teislSet,
+               aes(x=start,xend=stop),y=0,yend=0,size=4,inherit.aes=FALSE,col=goodCols[3])
+pf2
+dev.print(pdf,"/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/analyses/visualizeTEislands/CobsA2.1.pdf",width=10,height=2.25)
+#tracks(p)
+```
+

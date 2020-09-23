@@ -1,0 +1,376 @@
+---
+title: "Cobs Genome repeat landscapes: all of the genome"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 2
+    collapsed: true
+    number_sections: true
+    df_print: paged
+  pdf_document: default
+---
+<STYLE TYPE="text/css">
+<!--
+  td{
+    font-family: Arial; 
+    font-size: 8pt;
+    padding:0px;
+    cellpadding="0";
+    cellspacing="0"
+  }
+  th {
+    font-family: Arial; 
+    font-size: 8pt;
+    height: 20px;
+    font-weight: bold;
+    text-align: right;
+    background-color: #ccccff;
+  }
+  table { 
+    border-spacing: 0px;
+    border-collapse: collapse;
+  }
+--->
+</STYLE>
+
+# bioPerl installed with conda on jgpogo
+```{bash eval=FALSE, include=TRUE}
+#upload data
+scp /Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/annotation/Cobs.alpha.v.2.1.repeats/TE_newlibrary_19.03.20/Cobs.RepeatDataRaphael.zip jgpogo:~/data/Cardiocondyla/repeatAnnotation/Raphael/
+ssh jgpogo
+base=~/data/Cardiocondyla/repeatAnnotation/Raphael
+scripts=/global/homes/jg/schradel/software/Parsing-RepeatMasker-Outputs
+```
+
+https://github.com/4ureliek/Parsing-RepeatMasker-Outputs
+
+```{eval=FALSE, include=TRUE}}
+There are 3 non exclusive parsings types (they can be set together):
+ -p To get a summary of the masking, as well as amount or DNA,
+      counts of fragments, + several other details for each repeat name
+      (all-repeats file), family, class and total amount (summary file)
+      To deal well with the .align positions instead of segments are considered,
+      so it is slow (several hours on a bird genome)
+ -a To determine the amounts of DNA in a genome that is masked by repeats
+      of different lineages / %divergence categories
+ -l To split the amount of DNA by bins of %div or My, allowing to generate
+      landscape graphs for each repeat name, family or class (one output for each)
+```
+
+```{bash  eval=FALSE, include=TRUE}
+cd $base
+# m according to  mutation rate estimate recently published for bumblebees (3.6e-9 per nt per MY, Liu et al. 2017) 
+# --age 0.1,1 splits TEs into lineage-specific if they are younger than 0.1 MY and as ancient if they are older than 1 MY. 
+# -l 50,0.2 splits data into bins of 200 k years for the past 50 MY.
+$scripts/parseRM.pl -i Cobs/Results/Cobs.fa.align -l 50,0.2 --parse --glen $genome -m 0.0036 --age 0.1,1 
+```
+
+# create tsv file for Kimura divergence
+```{bash eval=FALSE, include=TRUE}
+cd $base
+perl /global/projects/programs/source/RepeatMasker/util/calcDivergenceFromAlign.pl Cobs.fa.align -a Cobs.fa.align.new -s Cobs.fa.align.summary
+```
+#Download data
+```{bash eval=FALSE, include=TRUE}
+scp jgant2:/global/homes/jg/schradel/data/Cardiocondyla/repeatAnnotation/Raphael/Cobs/Results/Cobs.fa.align.* /Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/annotation/Cobs.alpha.v.2.1.repeats/landscapes/
+```
+
+
+```{r}
+source("~/sciebo/librarySchrader.R")
+library(ggplot2)
+library(viridisLite)
+library(dplyr)
+color = grDevices::colors()[grep('gr(a|e)y', grDevices::colors(), invert = T)]
+
+file<-"/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/annotation/Cobs.alpha.v.2.1.repeats/landscapes/Cobs.fa.align.summary"
+system(paste("cat ",file,"|perl -pe 's/ +/\t/g'|sed 1,4d|sed '/^$/,/*/d'|perl -pe 's/^----.*\n//g' > Cobs.fa.align.summary.tmp",sep=""))
+system(paste("cat ",file,"|grep 'Coverage for each repeat class and divergence (Kimura)' -A 10000|perl -pe 's/ +/\t/g' > Cobs.fa.align.summary.tmp2",sep=""))
+
+sumTab<-read.csv("Cobs.fa.align.summary.tmp",sep="\t",T,stringsAsFactors = F)
+cols <- colorRampPalette(brewer.pal(8,"Blues"))(9)
+head(sumTab)
+sumTab$Class<-as.factor(sumTab$Class)
+sumTab$Kimura[is.na(as.numeric(sumTab$Kimura))]
+sumTab$c2<-gsub("(.*?)/.*","\\1",sumTab$Class,perl=T)
+
+sumTab2<-read.csv("Cobs.fa.align.summary.tmp2",sep="\t",skip = 1)
+sumTabMelt<-reshape2::melt(sumTab2, id.vars="Div")
+sumTabMelt$Class<-gsub("(.*?)\\..*","\\1",sumTabMelt$variable,perl=T)
+sumTabMelt$Class<-as.factor(sumTabMelt$Class)
+sumTabMelt$Fam<-as.factor(gsub(".*\\.(.*?)","\\1",sumTabMelt$variable))
+
+```
+
+
+
+
+```{r}
+set.seed(4)
+plotData<-subset(sumTabMelt,Class!="tRNA" & Class!="Satellite"&Class!="rRNA"&Class!="Retroposon"&Class!="Retro"&Class!="Simple_repeat")
+plotData$Class<-as.factor(as.character(plotData$Class))
+colSel<-sample(color, length(levels(plotData$Class)))
+
+ggplot(plotData, aes(fill=Class, x=Div,y=100*value/193051228)) + 
+  ylab("% genome")+ 
+  xlim(-1,50)+
+  xlab("Kimura distance")+
+    geom_bar(position="stack", stat="identity")+
+  theme_classic()+
+  scale_fill_manual(values=c("DNA" = goodCols[2],
+                             "LINE" = cols[7],
+                             "LTR" = goodCols[5],
+                             "SINE"= goodCols[7],
+                             "Unknown"= cols[3],
+                             "Unspecified"= cols[4],
+                             "RC"= goodCols[1])
+                             )+
+  theme(legend.position = "bottom")
+dev.print(pdf,"/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/annotation/Cobs.alpha.v.2.1.repeats/landscapes/Cobs.fa.align.summary.Kimura.broad.pdf",width=5,height=3)
+
+plotData2<-subset(sumTabMelt,Class=="LTR"& Fam!="Gypsy-Cigr"&Fam!="LTR"&Fam!="DIRS"&Fam!="Pao"&Fam!="Micropia"&Fam!="Cigr")
+plotData2$Fam<-as.factor(as.character(plotData2$Fam))
+colSel<-sample(color, length(levels(plotData$Fam)))
+cols <- colorRampPalette(brewer.pal(8,"Blues"))(9)
+
+plotData2$Fam <- factor(plotData2$Fam, levels = c("Gypsy","BEL","Copia","LARD","TRIM"))
+ggplot(plotData2, aes(fill=Fam, x=Div,y=100*value/193051228)) + 
+  ylab("% genome")+ 
+  xlim(-1,50)+
+  xlab("Kimura distance")+
+    geom_bar(position="stack", stat="identity")+
+  theme_classic()+
+  theme(legend.position = "bottom")+
+  scale_fill_manual(values = c("BEL"=cols[3],
+                 "Copia"=cols[4],
+                 "Gypsy"=goodCols[5],
+                 "LARD"=cols[6],
+                 "TRIM"=cols[9]
+                 ))
+dev.print(pdf,"/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/annotation/Cobs.alpha.v.2.1.repeats/landscapes/Cobs.fa.align.summary.Kimura.LTRs.pdf")
+```
+# Timed data set created with parseRM.pl
+```{r}
+type<-"whole genome"
+data<-read.csv("/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/annotation/Cobs.alpha.v.2.1.repeats/landscapes/Cobs.fa.align.landscape.My.Rname.tab",sep="\t",skip=1,check.names=FALSE)
+colnames(data)[4:ncol(data)]<-round(as.numeric(gsub("\\[(.*?)\\;(.*?)\\[","\\2",colnames(data)[4:ncol(data)],perl=T)),1)
+dataMelt<-reshape2::melt(data, id.vars=colnames(data)[1:3])
+
+dataclass<-read.csv("/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/annotation/Cobs.alpha.v.2.1.repeats/landscapes/Cobs.fa.align.landscape.My.Rclass.tab",sep="\t",skip=1,check.names=FALSE)
+colnames(dataclass)[4:ncol(dataclass)]<-round(as.numeric(gsub("\\[(.*?)\\;(.*?)\\[","\\2",colnames(dataclass)[4:ncol(dataclass)],perl=T)),1)
+dataMeltclass<-reshape2::melt(dataclass, id.vars=colnames(dataclass)[1:1])
+
+datafam<-read.csv("/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/annotation/Cobs.alpha.v.2.1.repeats/landscapes/Cobs.fa.align.landscape.My.Rfam.tab",sep="\t",skip=1,check.names=FALSE)
+colnames(datafam)[4:ncol(datafam)]<-round(as.numeric(gsub("\\[(.*?)\\;(.*?)\\[","\\2",colnames(datafam)[4:ncol(datafam)],perl=T)),1)
+dataMeltfam<-reshape2::melt(datafam, id.vars=colnames(datafam)[1:2])
+
+
+```
+
+```{r}
+#24664824 = TEisland coverage
+#193051228 = total genome size
+#193051228-24664824=168386404
+ggplot(dataMeltclass, aes(fill=Rclass, x=as.numeric(as.character(variable)),y=100*value/193051228)) + ylab("% genome")+ xlab("MYA")+
+    geom_bar(position="stack", stat="identity")+theme_classic()+theme(legend.position = "bottom",axis.text.x = element_text(angle = -45))+ggtitle(type)
+
+dev.print(pdf, "/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/annotation/Cobs.alpha.v.2.1.repeats/landscapes/Cobs.fa.broad.pdf")
+```
+
+LTR only
+```{R}
+
+set.seed(10)
+LTRs<-subset(dataMeltfam,Rclass=="LTR" & Rfam!="Gypsy-Cigr"&Rfam!="LTR"&Rfam!="DIRS"&Rfam!="Pao")
+LTRs<-subset(dataMeltfam,Rclass=="LTR")
+
+LTRs$Rfam<-as.factor(as.character(LTRs$Rfam))
+colSel<-sample(color, length(levels(LTRs$Rfam)))
+
+cols <- colorRampPalette(brewer.pal(8,"Blues"))(9)
+g1<-ggplot(LTRs, aes(fill=Rfam, x=as.numeric(as.character(variable)),y=100*value/193051228)) + ylab("% genome")+ xlab("MYA")+
+    geom_bar(position="stack", stat="identity")+theme_classic()+theme(legend.position = "bottom",axis.text.x = element_text(angle = -45))+ggtitle(type)
+g1
+dev.print(pdf,"/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/annotation/Cobs.alpha.v.2.1.repeats/landscapes/Cobs.LTR.0-50.pdf")
+g2<-ggplot(LTRs, aes(fill=Rfam, x=as.numeric(as.character(variable)),y=100*value/193051228)) + ylab("% genome")+ xlab("MYA")+
+    geom_bar(position="stack", stat="identity")+theme_classic()+theme(legend.position = "bottom",axis.text.x = element_text(angle = -45))+xlim(0,10)+ggtitle(type)
+g2
+dev.print(pdf,"/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/annotation/Cobs.alpha.v.2.1.repeats/landscapes/Cobs.LTR.0-10.pdf")
+
+
+#+scale_fill_manual(values = c("BEL"=cols[1],
+#                                                                                             "Copia"=cols[3],
+#                                                                                             "Gypsy"=goodCols[3],
+#                                                                                             "LARD"=cols[6],
+#                                                                                             "TRIM"=cols[9]
+#                                                                                             ))
+
+```
+Gypsy only
+```{R}
+set.seed(20)
+Gypsy<-subset(dataMelt,Rfam=="Gypsy" )
+tmp<-Gypsy %>%
+    group_by(Rname) %>%
+    summarise(score=max(value))
+Gypsy2<-subset(Gypsy,Rname %in% tmp$Rname[tmp$score>500])
+Gypsy2$Rname<-as.factor(as.character(Gypsy2$Rname))
+colSel<-sample(color, length(levels(Gypsy2$Rname)))
+ggplot(Gypsy2, aes(fill=Rname, x=as.numeric(as.character(variable)),y=100*value/193051228)) + ylab("% genome")+ xlab("MYA")+
+    geom_bar(position="stack", stat="identity")+theme_classic()+theme(legend.position = "none")+theme(legend.position = "none",axis.text.x = element_text(angle = -45))+ggtitle(type)
+dev.print(pdf,"/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/annotation/Cobs.alpha.v.2.1.repeats/landscapes/Cobs.Gypsy.pdf")
+
+
+Gypsy3<-subset(Gypsy,Rname %in% tmp$Rname[tmp$score>10000])
+Gypsy3$Rname<-as.factor(as.character(Gypsy3$Rname))
+colSel<-sample(color, length(levels(Gypsy3$Rname)))
+ggplot(Gypsy3, aes(fill=Rname, x=as.numeric(as.character(variable)),y=100*value/193051228)) + ylab("% genome")+ xlab("MYA")+
+    geom_bar(position="stack", stat="identity")+theme_classic()+theme(legend.position = "bottom",legend.key.size = unit(1,"mm"),axis.text.x = element_text(angle = -45))+ggtitle(type)+xlim(0,20)
+
+dev.print(pdf,"/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/annotation/Cobs.alpha.v.2.1.repeats/landscapes/Cobs.Gypsy.mostAbundant.pdf")
+
+```
+
+
+
+
+DNA only
+```{R}
+
+set.seed(10)
+DNAs<-subset(dataMeltfam,Rclass=="DNA")
+
+DNAs$Rfam<-as.factor(as.character(DNAs$Rfam))
+colSel<-sample(color, length(levels(DNAs$Rfam)))
+
+cols <- colorRampPalette(brewer.pal(8,"Blues"))(9)
+g1<-ggplot(DNAs, aes(fill=Rfam, x=as.numeric(as.character(variable)),y=100*value/193051228)) + ylab("% genome")+ xlab("MYA")+
+    geom_bar(position="stack", stat="identity")+theme_classic()+theme(legend.position = "bottom",axis.text.x = element_text(angle = -45))+ggtitle(type)
+g1
+dev.print(pdf,"/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/annotation/Cobs.alpha.v.2.1.repeats/landscapes/Cobs.DNA.0-50.pdf")
+g2<-ggplot(DNAs, aes(fill=Rfam, x=as.numeric(as.character(variable)),y=100*value/193051228)) + ylab("% genome")+ xlab("MYA")+
+    geom_bar(position="stack", stat="identity")+theme_classic()+theme(legend.position = "bottom",axis.text.x = element_text(angle = -45))+xlim(0,10)+ggtitle(type)
+g2
+dev.print(pdf,"/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/annotation/Cobs.alpha.v.2.1.repeats/landscapes/Cobs.DNA.0-10.pdf")
+
+
+#+scale_fill_manual(values = c("BEL"=cols[1],
+#                                                                                             "Copia"=cols[3],
+#                                                                                             "Gypsy"=goodCols[3],
+#                                                                                             "LARD"=cols[6],
+#                                                                                             "TRIM"=cols[9]
+#                                                                                             ))
+
+```
+
+Maverickfam only
+```{R}
+set.seed(20)
+Maverickfam<-subset(dataMelt,Rfam=="Maverick" )
+tmp<-Maverickfam %>%
+    group_by(Rname) %>%
+    summarise(score=max(value))
+Maverickfam2<-subset(Maverickfam,Rname %in% tmp$Rname[tmp$score>500])
+Maverickfam2$Rname<-as.factor(as.character(Maverickfam2$Rname))
+#colSel<-sample(color, length(levels(Maverickfam2$Rname)))
+ggplot(Maverickfam2, aes(fill=Rname, x=as.numeric(as.character(variable)),y=100*value/193051228)) + ylab("% genome")+ xlab("MYA")+
+    geom_bar(position="stack", stat="identity")+theme_classic()+theme(legend.position = "none")+theme(legend.position = "none",axis.text.x = element_text(angle = -45))+ggtitle(type,subtitle = "Maverick family")
+dev.print(pdf,"/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/annotation/Cobs.alpha.v.2.1.repeats/landscapes/Cobs.Maverickfam.pdf")
+
+
+Maverickfam3<-subset(Maverickfam,Rname %in% tmp$Rname[tmp$score>10000])
+Maverickfam3$Rname<-as.factor(as.character(Maverickfam3$Rname))
+colSel<-sample(color, length(levels(Maverickfam3$Rname)))
+ggplot(Maverickfam3, aes(fill=Rname, x=as.numeric(as.character(variable)),y=100*value/193051228)) + ylab("% genome")+ xlab("MYA")+
+    geom_bar(position="stack", stat="identity")+theme_classic()+theme(legend.position = "bottom",legend.key.size = unit(1,"mm"),axis.text.x = element_text(angle = -45))+ggtitle(type,subtitle = "Maverick family")+xlim(0,20)
+
+dev.print(pdf,"/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/annotation/Cobs.alpha.v.2.1.repeats/landscapes/Cobs.Maverickfam.mostAbundant.pdf")
+
+```
+
+RC only
+```{R}
+
+set.seed(10)
+RCs<-subset(dataMeltfam,Rclass=="RC")
+
+RCs$Rfam<-as.factor(as.character(RCs$Rfam))
+colSel<-sample(color, length(levels(RCs$Rfam)))
+
+cols <- colorRampPalette(brewer.pal(8,"Blues"))(9)
+g1<-ggplot(RCs, aes(fill=Rfam, x=as.numeric(as.character(variable)),y=100*value/193051228)) + ylab("% genome")+ xlab("MYA")+
+    geom_bar(position="stack", stat="identity")+theme_classic()+theme(legend.position = "bottom",axis.text.x = element_text(angle = -45))+ggtitle(type)
+g1
+dev.print(pdf,"/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/annotation/Cobs.alpha.v.2.1.repeats/landscapes/Cobs.RC.0-50.pdf")
+g2<-ggplot(RCs, aes(fill=Rfam, x=as.numeric(as.character(variable)),y=100*value/193051228)) + ylab("% genome")+ xlab("MYA")+
+    geom_bar(position="stack", stat="identity")+theme_classic()+theme(legend.position = "bottom",axis.text.x = element_text(angle = -45))+xlim(0,10)+ggtitle(type)
+g2
+dev.print(pdf,"/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/annotation/Cobs.alpha.v.2.1.repeats/landscapes/Cobs.RC.0-10.pdf")
+
+
+#+scale_fill_manual(values = c("BEL"=cols[1],
+#                                                                                             "Copia"=cols[3],
+#                                                                                             "Gypsy"=goodCols[3],
+#                                                                                             "LARD"=cols[6],
+#                                                                                             "TRIM"=cols[9]
+#                                                                                             ))
+
+```
+LINE only
+```{R}
+
+set.seed(10)
+LINEs<-subset(dataMeltfam,Rclass=="LINE")
+
+LINEs$Rfam<-as.factor(as.character(LINEs$Rfam))
+colSel<-sample(color, length(levels(LINEs$Rfam)))
+
+cols <- colorRampPalette(brewer.pal(8,"Blues"))(9)
+g1<-ggplot(LINEs, aes(fill=Rfam, x=as.numeric(as.character(variable)),y=100*value/193051228)) + ylab("% genome")+ xlab("MYA")+
+    geom_bar(position="stack", stat="identity")+theme_classic()+theme(legend.position = "bottom",axis.text.x = element_text(angle = -45))+ggtitle(type)
+g1
+dev.print(pdf,"/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/annotation/Cobs.alpha.v.2.1.repeats/landscapes/Cobs.LINE.0-50.pdf")
+g2<-ggplot(LINEs, aes(fill=Rfam, x=as.numeric(as.character(variable)),y=100*value/193051228)) + ylab("% genome")+ xlab("MYA")+
+    geom_bar(position="stack", stat="identity")+theme_classic()+theme(legend.position = "bottom",axis.text.x = element_text(angle = -45))+xlim(0,10)+ggtitle(type)
+g2
+dev.print(pdf,"/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/annotation/Cobs.alpha.v.2.1.repeats/landscapes/Cobs.LINE.0-10.pdf")
+
+
+#+scale_fill_manual(values = c("BEL"=cols[1],
+#                                                                                             "Copia"=cols[3],
+#                                                                                             "Gypsy"=goodCols[3],
+#                                                                                             "LARD"=cols[6],
+#                                                                                             "TRIM"=cols[9]
+#                                                                                             ))
+
+```
+
+Retro only
+```{R}
+
+set.seed(10)
+Retros<-subset(dataMeltfam,Rclass=="Retro")
+
+Retros$Rfam<-as.factor(as.character(Retros$Rfam))
+colSel<-sample(color, length(levels(Retros$Rfam)))
+
+cols <- colorRampPalette(brewer.pal(8,"Blues"))(9)
+g1<-ggplot(Retros, aes(fill=Rfam, x=as.numeric(as.character(variable)),y=100*value/193051228)) + ylab("% genome")+ xlab("MYA")+
+    geom_bar(position="stack", stat="identity")+theme_classic()+theme(legend.position = "bottom",axis.text.x = element_text(angle = -45))+ggtitle(type)
+g1
+dev.print(pdf,"/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/annotation/Cobs.alpha.v.2.1.repeats/landscapes/Cobs.Retro.0-50.pdf")
+g2<-ggplot(Retros, aes(fill=Rfam, x=as.numeric(as.character(variable)),y=100*value/193051228)) + ylab("% genome")+ xlab("MYA")+
+    geom_bar(position="stack", stat="identity")+theme_classic()+theme(legend.position = "bottom",axis.text.x = element_text(angle = -45))+xlim(0,10)+ggtitle(type)
+g2
+dev.print(pdf,"/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/annotation/Cobs.alpha.v.2.1.repeats/landscapes/Cobs.Retro.0-10.pdf")
+
+
+#+scale_fill_manual(values = c("BEL"=cols[1],
+#                                                                                             "Copia"=cols[3],
+#                                                                                             "Gypsy"=goodCols[3],
+#                                                                                             "LARD"=cols[6],
+#                                                                                             "TRIM"=cols[9]
+#                                                                                             ))
+
+```

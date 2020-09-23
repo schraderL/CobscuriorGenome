@@ -1,0 +1,266 @@
+---
+title: "Cobs Genome repeat landscapes: plot Blast results and phylongeny"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 2
+    collapsed: true
+    number_sections: true
+    df_print: paged
+  pdf_document: default
+---
+<STYLE TYPE="text/css">
+<!--
+  td{
+    font-family: Arial; 
+    font-size: 8pt;
+    padding:0px;
+    cellpadding="0";
+    cellspacing="0"
+  }
+  th {
+    font-family: Arial; 
+    font-size: 8pt;
+    height: 20px;
+    font-weight: bold;
+    text-align: right;
+    background-color: #ccccff;
+  }
+  table { 
+    border-spacing: 0px;
+    border-collapse: collapse;
+  }
+--->
+</STYLE>
+
+# prepare environmept
+```{r}
+#source("~/sciebo/librarySchrader.R")
+#BiocManager::install("ggtree")
+#BiocManager::install("ggbio")
+library(tidyverse)
+library(ggtree)
+library(cowplot)
+library("ggrepel")
+library(ggplot2)
+library(ape)
+library(rtracklayer)
+library(ggbio)
+library(GenomicRanges)
+
+```
+
+# load data
+```{r}
+
+teid<-"CobsR.176"
+#teid<-"CobsR.103"
+#teid<-"CobsR.1222"
+# TE island annotation
+TEi<-read.csv("/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/annotation/Cobs.alpha.v.2.1.repeats/Cobs.alpha.v.2.1.TEislands/te_islands.bed",sep=" ",F)
+
+# Blast results TE insertions vs reference element
+bls<-read.csv(paste("/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/annotation/Cobs.alpha.v.2.1.repeats/landscapes/phylogenies/",teid,"/",teid,".bls",sep=""),header=F,sep="\t")
+colnames(bls)<-c("qseqid","sseqid","pident","length","mismatch","gapopen","qstart","qend","sstart","send","evalue","bitscore")
+
+# interpro annotation of reference TE
+gffRangedData<-readGFF(paste("/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/annotation/Cobs.alpha.v.2.1.repeats/landscapes/phylogenies/",teid,"/interpro/",teid,".reference.fa.gff3",sep=""))
+fullElementLength<-gffRangedData[1,"end"]-gffRangedData[1,"start"]
+
+# tree
+tree<-ape::read.tree(file=paste("/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/annotation/Cobs.alpha.v.2.1.repeats/landscapes/phylogenies/",teid,"/",teid,".mafft.tre",sep=""))
+```
+
+# Prepare Data
+## blast
+```{R}
+
+# modify blast results
+bls$length<-abs(bls$sstart-bls$send)
+bls$id<-gsub("::.*","",bls$qseqid,perl=T)
+blsL<-split(bls,bls$id)
+fullLength<-data.frame(unlist(lapply(blsL,function(x) {abs(sum(x$length))})))
+bls<-merge(bls,fullLength,by.x="id",by.y="row.names")
+colnames(bls)[14]<-"fullLength"
+bls$V1<-reorder(bls$qseqid, bls$fullLength)
+bls$id<-reorder(bls$id, bls$fullLength)
+
+```
+
+
+## plot the tree
+```{r}
+colnames(bls)[1]<-"label"
+gT<-ggtree(phytools::midpoint.root(tree))+geom_tiplab(size=1,align = F)
+bls2<-merge(gT$data,bls,by="label",all.y=T)
+bls2$label<-as.factor(bls2$label)
+bls2$scf<-gsub(".*?::(.*?):.*","\\1",bls2$qseqid,perl=T)
+bls2$start<-gsub(".*?::.*?:(.*)-.*","\\1",bls2$qseqid,perl=T)
+bls2$stop<-gsub(".*?::.*?:.*-(.*)","\\1",bls2$qseqid,perl=T)
+gT2<-gT %<+% bls +xlim(0,1.1*max(bls2$x))
+
+p<-ggplot()+
+ # geom_rect(data=subset(bls2[!duplicated(bls$qseqid),],fullLength>(0.9*fullElementLength)),aes(ymin=y-.25,ymax=y+.25),xmin=0,xmax=fullElementLength,col=1,fill=NA,lwd=.5,alpha=1)+ 
+  geom_segment(data=bls2,aes(x=sstart,y=y,xend=send,yend=y,col=pident),lwd=1)+ 
+  scale_color_gradient2(low = "blue",mid="steelblue",high = "red",midpoint = 90)+
+                                                                                      theme_classic()+theme(axis.title.y = element_blank(),
+                                                                                      axis.text.y = element_blank(),
+                                                                                      axis.ticks.y = element_blank())
+
+#https://guangchuangyu.github.io/2016/11/align-genomic-features-with-phylogenetic-tree/
+#https://bioconductor.statistik.tu-dortmund.de/packages/3.8/bioc/vignettes/ggtree/inst/doc/treeAnnotation.html
+```
+
+# map TE island overlap
+```{r}
+#findOverlaps(ir_cds, ir_rango)
+GR_TEs <- GRanges(gsub(".*::","",bls2$qseqid,perl=T),name = bls2$qseqid)
+GR_TEisl <-GRanges(gsub("(.*)\t(.*)\t(.*)","\\1\\:\\2\\-\\3",TEi$V1,perl=T))
+overlap<-subsetByOverlaps(GR_TEs, GR_TEisl)
+
+bls2$TEisland<-F
+bls2$TEisland[bls2$qseqid %in% overlap$name]<-TRUE
+
+```
+
+#plot
+```{r}
+
+bls3<-bls2[!duplicated(bls2[,"qseqid"]),]
+bls3$x<-1
+
+p2<-ggplot(bls3) + geom_tile(aes(y=y,fill = TEisland,x))
+
+
+# Align axes
+gT2<-gT2+scale_y_continuous(limits=c(0, length(tree$tip.label)+20))
+p<-p+scale_y_continuous(limits=c(0, length(tree$tip.label)+20))+theme( legend.position = "none")
+p2<-p2+scale_y_continuous(limits=c(0, length(tree$tip.label)+20))+theme_classic()+theme(axis.title = element_blank(),
+                                                                 axis.text = element_blank(),
+                                                                 axis.ticks = element_blank(),
+                                                                 axis.line = element_blank(),
+                                                                 legend.position = "none")+
+                                                            scale_fill_manual(values=goodCols[c(1,3)])
+```
+
+# Add interpro annotations
+```{r}
+gffRangedData$seqidOrig<-gffRangedData$seqid
+gffRangedData$seqid<-gffRangedData$seqid[1]
+pfam<-subset(gffRangedData,source =="Pfam")
+cdd<-subset(gffRangedData,source =="CDD")
+orf<-subset(gffRangedData,type =="ORF")
+TEfull<-as.data.frame(subset(gffRangedData,type =="nucleic_acid"))[1,]
+pfamorfs<-gsub(".*_(orf.*?)$","\\1",pfam$seqidOrig,perl=T)
+cddorfs<-gsub(".*_(orf.*?)$","\\1",cdd$seqidOrig,perl=T)
+abbreviation<-gsub("(.*_)orf.*?$","\\1",pfam$seqidOrig,perl=T)
+
+
+pfam2<-pfam
+for (i in pfam$seqidOrig){
+  pfam2$start[pfam$seqidOrig==i]<-pfam$start[pfam$seqidOrig==i]+orf$start[orf$seqidOrig==i]
+  pfam2$end[pfam$seqidOrig==i]<-pfam$end[pfam$seqidOrig==i]+orf$start[orf$seqidOrig==i]
+}
+
+cdd2<-cdd
+for (i in cdd$seqidOrig){
+  cdd2$start[cdd$seqidOrig==i]<-cdd$start[cdd$seqidOrig==i]+orf$start[orf$seqidOrig==i]
+  cdd2$end[cdd$seqidOrig==i]<-cdd$end[cdd$seqidOrig==i]+orf$start[orf$seqidOrig==i]
+}
+
+TEfull$y<-length(tree$tip.label)+3
+pfam2$y<-length(tree$tip.label)+14
+cdd2$y<-length(tree$tip.label)+10
+GR_pfam<-as(pfam2, "GRanges")
+GR_cdd<-as(cdd2, "GRanges")
+
+dfPfam<-as.data.frame(pfam2)
+dfCDD<-as.data.frame(cdd2)
+dfPfam$center<-rowMeans(dfPfam[c("start","end")])
+dfCDD$center<-rowMeans(dfCDD[c("start","end")])
+
+p3<-p+
+     geom_rect(data=TEfull,aes(xmin=start,xmax=end,ymin=y-1,ymax=y+1,fill=Name),lwd=0,fill="gray90",alpha=1)+
+     geom_text(data=TEfull,aes(x=mean(c(start,end)),y=y,label=Name),size=2)+
+     geom_rect(data=dfPfam,aes(xmin=start,xmax=end,ymin=y-1,ymax=y+1,fill=Name),lwd=20)+
+     geom_text_repel(dfPfam,mapping=aes(x=center,y=y,label = Name),nudge_y = 5,srt=0,size=2,direction="x",min.segment.length=0, segment.size = 0.2)+
+  
+     geom_rect(data=dfCDD,aes(xmin=start,xmax=end,ymin=y-1,ymax=y+1,fill=Name),lwd=20)+
+     geom_text_repel(dfCDD,mapping=aes(x=center,y=y,label = signature_desc),nudge_y = -4,srt=0,size=2,direction="x",min.segment.length=0, segment.size = 0.2)
+
+
+```
+
+```{r}
+gT2<-gT2+theme(panel.border=element_blank(), 
+        panel.spacing = unit(0, "cm"),
+        panel.grid.major=element_blank(),
+        panel.grid.minor=element_blank(),
+        plot.margin = margin(0, 0, 0, 0, "cm"))
+
+p2<-p2+theme(panel.border=element_blank(), 
+        panel.spacing = unit(0, "cm"),
+        panel.grid.major=element_blank(),
+        panel.grid.minor=element_blank(),
+        plot.margin = margin(0, 0, 0, 0, "cm"))
+
+p3<-p3+theme(panel.border=element_blank(), 
+        panel.spacing = unit(0, "cm"),
+        panel.grid.major=element_blank(),
+        panel.grid.minor=element_blank(),
+        plot.margin = margin(0, 0.1, 0, 0, "cm"))
+
+
+
+p4<-plot_grid(gT2+
+  theme(axis.text.x  = element_text(angle=90, vjust=0.5, size=0)),p2, p3, rel_widths = c(30,1,14),nrow=1,align = "h")
+p4
+
+```
+
+```{r}
+
+
+
+plot1<-ggplot(gT2$data, aes(x=x)) +xlim(0,1.1*max(bls2$x))+ ylab("")+
+  geom_density(fill="gray90")+theme(panel.border=element_blank(), 
+        panel.spacing = unit(0, "cm"),
+        panel.grid.major=element_blank(),
+        panel.grid.minor=element_blank(),
+        plot.margin = margin(0, 0, 0, 0, "cm"))+theme_tree()+
+  theme(axis.text.x  = element_text(angle=90, vjust=0.5, size=10))
+
+
+
+
+
+g2 = ggplotGrob(plot1)
+plot3 = p4 + annotation_custom(grob = g2, xmin=0, xmax=.7, ymin=0.8, ymax=1)
+plot(plot3)
+dev.print(pdf,paste("/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/annotation/Cobs.alpha.v.2.1.repeats/landscapes/phylogenies/",teid,".pdf",sep=""))
+```
+
+## plot the tree
+```{r}
+colnames(bls)[1]<-"label"
+gT<-ggtree(phytools::midpoint.root(tree),layout="circular")+geom_tiplab(size=1,align = F)
+bls2<-merge(gT$data,bls,by="label",all.y=T)
+bls2$label<-as.factor(bls2$label)
+bls2$scf<-gsub(".*?::(.*?):.*","\\1",bls2$qseqid,perl=T)
+bls2$start<-gsub(".*?::.*?:(.*)-.*","\\1",bls2$qseqid,perl=T)
+bls2$stop<-gsub(".*?::.*?:.*-(.*)","\\1",bls2$qseqid,perl=T)
+gT2<-gT %<+% bls
+gT2<-gT2+geom_tiplab(aes(color = pident))
+p<-ggplot()+
+ # geom_rect(data=subset(bls2[!duplicated(bls$qseqid),],fullLength>(0.9*fullElementLength)),aes(ymin=y-.25,ymax=y+.25),xmin=0,xmax=fullElementLength,col=1,fill=NA,lwd=.5,alpha=1)+ 
+  geom_segment(data=bls2,aes(x=sstart,y=y,xend=send,yend=y,col=pident),lwd=1)+ 
+  scale_color_gradient2(low = "blue",mid="steelblue",high = "red",midpoint = 90)+
+                                                                                      theme_classic()+theme(axis.title.y = element_blank(),
+                                                                                      axis.text.y = element_blank(),
+                                                                                      axis.ticks.y = element_blank())
+
+#https://guangchuangyu.github.io/2016/11/align-genomic-features-with-phylogenetic-tree/
+#https://bioconductor.statistik.tu-dortmund.de/packages/3.8/bioc/vignettes/ggtree/inst/doc/treeAnnotation.html
+p
+```

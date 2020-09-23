@@ -1,0 +1,270 @@
+---
+title: "Cobs Genome repeat landscapes: DNApipeTE analysis"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 2
+    collapsed: true
+    number_sections: true
+    df_print: paged
+  pdf_document: default
+---
+<STYLE TYPE="text/css">
+<!--
+  td{
+    font-family: Arial; 
+    font-size: 8pt;
+    padding:0px;
+    cellpadding="0";
+    cellspacing="0"
+  }
+  th {
+    font-family: Arial; 
+    font-size: 8pt;
+    height: 20px;
+    font-weight: bold;
+    text-align: right;
+    background-color: #ccccff;
+  }
+  table { 
+    border-spacing: 0px;
+    border-collapse: collapse;
+  }
+--->
+</STYLE>
+
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(cowplot)
+library(reshape2)
+```
+
+```{r}
+pop<-"UNA"
+land = read.table("/Users/lukas/sciebo/TE_library_v2/una_0.1X_CobsLib_3it/reads_landscape")
+ttl<-read.table("/Users/lukas/sciebo/TE_library_v2/una_0.1X_CobsLib_3it/blast_reads.counts")
+ttl <- ttl[1]
+ttlUNA <- ttl[1]
+names(land)=c("id", "annot", "fam1", "fam")
+land$div=100-land$id
+landUNA<-land
+
+#read the corresponding factor order and color table
+fac_col = read.table("/Users/lukas/sciebo/TE_library_v2/una_0.1X_CobsLib_3it/factors_and_colors")
+#order factors and colors
+land$fam1=factor(land$fam1, levels=as.character(fac_col$V1))
+print(as.numeric(ttl))
+
+#plot the full landscape graph
+#ggplot(land, aes(div, fill=fam1))+geom_histogram(binwidth=1.1)+labs(list(x="Divergence from dnaPipeTE contig (%)", y="Genome percent"))+coord_cartesian(xlim = c(0, 35))+scale_fill_manual(values=as.character(fac_col$V3))+guides(fill=guide_legend(ncol=3))+scale_y_continuous(labels=function(x)signif(x/as.numeric(ttl)*100, 3))+theme_classic()+ggtitle(pop)+theme(legend.direction ="vertical",legend.position = "bottom")
+
+#ggsave(paste("/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/analyses/DNApipeTE/landscape.",pop,".pdf",sep=""), height=12, width=10)
+
+landBin<-land %>%
+      group_by(range=cut(div, breaks = seq(-1, 100, 1))) %>%
+      count(range, annot,fam1,fam, sort = TRUE)
+landBin$range<-gsub(".*?\\,(.*?)\\]","\\1",landBin$range,perl=T)
+landBinUNA<-landBin
+landBinAbundant<-land %>%
+      count(annot,fam1,fam, sort = TRUE)
+Gypsy<-subset(landBin,fam1=="LTR/Gypsy"|fam1=="LTR"|fam1=="LTR/TRIM")
+Gypsy<-subset(landBin,grepl("LTR",fam1))
+Gypsy2<-subset(Gypsy,annot %in% landBinAbundant$annot[landBinAbundant$n>50])
+#focal<-c("Gypsy-16_PBa-I","Gypsy-23_PBa-I","Gypsy-4_PBa-I","Gypsy-5_PBa-I","Gypsy-9_PBa-I","Gypsy-9_CFl-I","Gypsy-6_PBa-I","Gypsy-7_CFl-I","Gypsy-14_PBa-I","Gypsy-1_ACe-I","Gypsy-6_AEc-I","Gypsy-7_ACe-I","Gypsy-11_CFl-I","Gypsy-27_SI-I")
+
+
+#Gypsy2<-subset(Gypsy,annot %in% focal)
+#Gypsy2$annot <- factor(Gypsy2$annot, levels = focal)
+#Gypsy2$annotBinary<-"other LTR/Gypsys"
+#Gypsy2$annotBinary[Gypsy2$annot=="Gypsy-16_PBa-I"]<-"Gypsy-16_PBa-I"
+
+#ggplot(Gypsy2, aes(fill=annotBinary, x=as.numeric(range),y=n/as.numeric(ttl)*100 )) +
+#    geom_bar(position="stack", stat="identity")+theme_classic()+ylim(0,.5)+xlab("Divergence (%)")+ylab("Genome (%)")+scale_fill_manual(values=c("Gypsy-16_PBa-I"="steelblue","other LTR/Gypsys"="grey80"))+ggtitle(pop)
+
+#ggsave(paste("/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/analyses/DNApipeTE/",pop,".Gypsy.pdf",sep=""))
+
+g1<-ggplot(landBin, aes(fill=fam, x=as.numeric(range),y=n/as.numeric(ttl)*100 )) +
+    geom_bar(position="stack", stat="identity")+theme_classic()+xlab("Divergence (%)")+ylab("Genome (%)")+ggtitle(pop)
+
+
+g2<-ggplot(Gypsy, aes(fill=fam1, x=as.numeric(range),y=n/as.numeric(ttl)*100 )) +
+    geom_bar(position="stack", stat="identity")+theme_classic()+xlab("Divergence (%)")+ylab("Genome (%)")+ggtitle(pop)
+
+gS1<-ggplot(Gypsy2, aes(fill=interaction(annot,fam), x=as.numeric(range),y=n/as.numeric(ttl)*100 )) +
+    geom_bar(position="stack", stat="identity")+theme_classic()+xlab("Divergence (%)")+ylab("Genome (%)")+ggtitle(pop)+scale_color_grey()
+
+#ggsave(paste("/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/analyses/DNApipeTE/",pop,".Gypsy.detail.pdf",sep=""))
+
+table(Gypsy2$annot)[table(Gypsy2$annot)>10]
+```
+```{r}
+pop<-"TNF"
+land = read.table("/Users/lukas/sciebo/TE_library_v2/tenerife_0.1X_CobsLib_3it/reads_landscape")
+ttl<-read.table("/Users/lukas/sciebo/TE_library_v2/tenerife_0.1X_CobsLib_3it/blast_reads.counts")
+ttl <- ttl[1]
+ttlTNF <- ttl[1]
+names(land)=c("id", "annot", "fam1", "fam")
+land$div=100-land$id
+landTNF<-land
+
+#read the corresponding factor order and color table
+fac_col = read.table("/Users/lukas/sciebo/TE_library_v2/tenerife_0.1X_CobsLib_3it/factors_and_colors")
+#order factors and colors
+land$fam1=factor(land$fam1, levels=as.character(fac_col$V1))
+print(as.numeric(ttl))
+
+#plot the full landscape graph
+#ggplot(land, aes(div, fill=fam1))+geom_histogram(binwidth=1.1)+labs(list(x="Divergence from dnaPipeTE contig (%)", y="Genome percent"))+coord_cartesian(xlim = c(0, 35))+scale_fill_manual(values=as.character(fac_col$V3))+guides(fill=guide_legend(ncol=3))+scale_y_continuous(labels=function(x)signif(x/as.numeric(ttl)*100, 3))+theme_classic()+ggtitle(pop)+theme(legend.direction ="vertical",legend.position = "bottom")
+
+#ggsave(paste("/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/analyses/DNApipeTE/landscape.",pop,".pdf",sep=""), height=12, width=10)
+
+landBin<-land %>%
+      group_by(range=cut(div, breaks = seq(-1, 100, 1))) %>%
+      count(range, annot,fam1,fam, sort = TRUE)
+landBin$range<-gsub(".*?\\,(.*?)\\]","\\1",landBin$range,perl=T)
+landBinTNF<-landBin
+landBinAbundant<-land %>%
+      count(annot,fam1,fam, sort = TRUE)
+Gypsy<-subset(landBin,fam1=="LTR/Gypsy"|fam1=="LTR"|fam1=="LTR/TRIM")
+Gypsy<-subset(landBin,grepl("LTR",fam1))
+Gypsy2<-subset(Gypsy,annot %in% landBinAbundant$annot[landBinAbundant$n>50])
+#focal<-c("Gypsy-16_PBa-I","Gypsy-23_PBa-I","Gypsy-4_PBa-I","Gypsy-5_PBa-I","Gypsy-9_PBa-I","Gypsy-9_CFl-I","Gypsy-6_PBa-I","Gypsy-7_CFl-I","Gypsy-14_PBa-I","Gypsy-1_ACe-I","Gypsy-6_AEc-I","Gypsy-7_ACe-I","Gypsy-11_CFl-I","Gypsy-27_SI-I")
+
+
+#Gypsy2<-subset(Gypsy,annot %in% focal)
+#Gypsy2$annot <- factor(Gypsy2$annot, levels = focal)
+#Gypsy2$annotBinary<-"other LTR/Gypsys"
+#Gypsy2$annotBinary[Gypsy2$annot=="Gypsy-16_PBa-I"]<-"Gypsy-16_PBa-I"
+
+#ggplot(Gypsy2, aes(fill=annotBinary, x=as.numeric(range),y=n/as.numeric(ttl)*100 )) +
+#    geom_bar(position="stack", stat="identity")+theme_classic()+ylim(0,.5)+xlab("Divergence (%)")+ylab("Genome (%)")+scale_fill_manual(values=c("Gypsy-16_PBa-I"="steelblue","other LTR/Gypsys"="grey80"))+ggtitle(pop)
+
+#ggsave(paste("/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/analyses/DNApipeTE/",pop,".Gypsy.pdf",sep=""))
+
+g3<-ggplot(landBin, aes(fill=fam, x=as.numeric(range),y=n/as.numeric(ttl)*100 )) +
+    geom_bar(position="stack", stat="identity")+theme_classic()+xlab("Divergence (%)")+ylab("Genome (%)")+ggtitle(pop)
+
+
+g4<-ggplot(Gypsy, aes(fill=fam1, x=as.numeric(range),y=n/as.numeric(ttl)*100 )) +
+    geom_bar(position="stack", stat="identity")+theme_classic()+xlab("Divergence (%)")+ylab("Genome (%)")+ggtitle(pop)
+
+gS2<-ggplot(Gypsy2, aes(fill=interaction(annot,fam), x=as.numeric(range),y=n/as.numeric(ttl)*100 )) +
+    geom_bar(position="stack", stat="identity")+theme_classic()+xlab("Divergence (%)")+ylab("Genome (%)")+ggtitle(pop)+scale_color_grey()
+
+#ggsave(paste("/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/analyses/DNApipeTE/",pop,".Gypsy.detail.pdf",sep=""))
+
+table(Gypsy2$annot)[table(Gypsy2$annot)>10]
+```
+```{r}
+pop<-"ITA"
+land = read.table("/Users/lukas/sciebo/TE_library_v2/itabuna_0.1X_CobsLib_3it/reads_landscape")
+ttl<-read.table("/Users/lukas/sciebo/TE_library_v2/itabuna_0.1X_CobsLib_3it/blast_reads.counts")
+ttl <- ttl[1]
+ttlITA <- ttl[1]
+names(land)=c("id", "annot", "fam1", "fam")
+land$div=100-land$id
+landITA<-land
+
+#read the corresponding factor order and color table
+fac_col = read.table("/Users/lukas/sciebo/TE_library_v2/itabuna_0.1X_CobsLib_3it/factors_and_colors")
+#order factors and colors
+land$fam1=factor(land$fam1, levels=as.character(fac_col$V1))
+print(as.numeric(ttl))
+
+#plot the full landscape graph
+#ggplot(land, aes(div, fill=fam1))+geom_histogram(binwidth=1.1)+labs(list(x="Divergence from dnaPipeTE contig (%)", y="Genome percent"))+coord_cartesian(xlim = c(0, 35))+scale_fill_manual(values=as.character(fac_col$V3))+guides(fill=guide_legend(ncol=3))+scale_y_continuous(labels=function(x)signif(x/as.numeric(ttl)*100, 3))+theme_classic()+ggtitle(pop)+theme(legend.direction ="vertical",legend.position = "bottom")
+
+#ggsave(paste("/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/analyses/DNApipeTE/landscape.",pop,".pdf",sep=""), height=12, width=10)
+
+landBin<-land %>%
+      group_by(range=cut(div, breaks = seq(-1, 100, 1))) %>%
+      count(range, annot,fam1,fam, sort = TRUE)
+landBin$range<-gsub(".*?\\,(.*?)\\]","\\1",landBin$range,perl=T)
+landBinITA<-landBin
+landBinAbundant<-land %>%
+      count(annot,fam1,fam, sort = TRUE)
+Gypsy<-subset(landBin,fam1=="LTR/Gypsy"|fam1=="LTR"|fam1=="LTR/TRIM")
+Gypsy<-subset(landBin,grepl("LTR",fam1))
+Gypsy2<-subset(Gypsy,annot %in% landBinAbundant$annot[landBinAbundant$n>50])
+#focal<-c("Gypsy-16_PBa-I","Gypsy-23_PBa-I","Gypsy-4_PBa-I","Gypsy-5_PBa-I","Gypsy-9_PBa-I","Gypsy-9_CFl-I","Gypsy-6_PBa-I","Gypsy-7_CFl-I","Gypsy-14_PBa-I","Gypsy-1_ACe-I","Gypsy-6_AEc-I","Gypsy-7_ACe-I","Gypsy-11_CFl-I","Gypsy-27_SI-I")
+
+
+#Gypsy2<-subset(Gypsy,annot %in% focal)
+#Gypsy2$annot <- factor(Gypsy2$annot, levels = focal)
+#Gypsy2$annotBinary<-"other LTR/Gypsys"
+#Gypsy2$annotBinary[Gypsy2$annot=="Gypsy-16_PBa-I"]<-"Gypsy-16_PBa-I"
+
+#ggplot(Gypsy2, aes(fill=annotBinary, x=as.numeric(range),y=n/as.numeric(ttl)*100 )) +
+#    geom_bar(position="stack", stat="identity")+theme_classic()+ylim(0,.5)+xlab("Divergence (%)")+ylab("Genome (%)")+scale_fill_manual(values=c("Gypsy-16_PBa-I"="steelblue","other LTR/Gypsys"="grey80"))+ggtitle(pop)
+
+#ggsave(paste("/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/analyses/DNApipeTE/",pop,".Gypsy.pdf",sep=""))
+
+g5<-ggplot(landBin, aes(fill=fam, x=as.numeric(range),y=n/as.numeric(ttl)*100 )) +
+    geom_bar(position="stack", stat="identity")+theme_classic()+xlab("Divergence (%)")+ylab("Genome (%)")+ggtitle(pop)
+
+
+g6<-ggplot(Gypsy, aes(fill=fam1, x=as.numeric(range),y=n/as.numeric(ttl)*100 )) +
+    geom_bar(position="stack", stat="identity")+theme_classic()+xlab("Divergence (%)")+ylab("Genome (%)")+ggtitle(pop)
+
+#ggsave(paste("/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/analyses/DNApipeTE/",pop,".Gypsy.detail.pdf",sep=""))
+gS3<-ggplot(Gypsy2, aes(fill=interaction(annot,fam), x=as.numeric(range),y=n/as.numeric(ttl)*100 )) +
+    geom_bar(position="stack", stat="identity")+theme_classic()+xlab("Divergence (%)")+ylab("Genome (%)")+scale_color_grey()
+
+
+table(Gypsy2$annot)[table(Gypsy2$annot)>10]
+```
+
+```{r}
+
+t1<-theme(legend.title=element_text(size=3),legend.position = "bottom",plot.title = element_text(size=5),
+    legend.text=element_text(size=3),  legend.key.size= unit(.1, "cm"),axis.title = element_text(size=3),plot.margin=unit(c(.1,.1,.1,.1), "cm"),axis.text =  element_text(size=2))
+
+t2<-theme(legend.title=element_text(size=3),legend.position = "right",plot.title = element_text(size=1),
+    legend.text=element_text(size=3),  legend.key.size= unit(.1, "cm"),axis.title = element_text(size=3),plot.margin=unit(c(.1,.1,.1,.1), "cm"),axis.text =  element_text(size=2))
+
+
+plot_grid(g1+t1+ylim(0,3),
+    g5+t1+ylim(0,3),
+    g3+t1+ylim(0,2),
+    g2+t1+ylim(0,3),
+    g6+t1+ylim(0,3),
+    g4+t1+ylim(0,3),
+    gS1+t2+ylim(0,3),
+    gS3+t2+ylim(0,3),
+    gS2+t2+ylim(0,3),
+    nrow=3)
+
+ggsave("/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/analyses/DNApipeTE/ComparisonNewRepeatLibrary.pdf")
+```
+
+```{r}
+Ttnf<-landTNF %>% group_by(annot) %>% tally(name="tnf")
+Tuna<-landUNA %>% group_by(annot) %>% tally(name="una")
+Tita<-landITA %>% group_by(annot) %>% tally(name="ita")
+joined<-full_join(Tita,  Tuna, by = "annot",) %>%full_join(.,  Ttnf, by = "annot")
+ 
+
+ggplot(joined)+geom_point(aes(x=ita,y=una))
+```
+
+```{r}
+candidate<-"CobsR.176" 
+TbinUna<-as.data.frame(subset(landBinUNA,grepl(candidate,annot)) %>% group_by(range) %>% tally(name="una"))
+TbinIta<-as.data.frame(subset(landBinITA,grepl(candidate,annot)) %>% group_by(range) %>% tally(name="ita"))
+TbinTnf<-as.data.frame(subset(landBinTNF,grepl(candidate,annot)) %>% group_by(range) %>% tally(name="tnf"))
+
+TbinIta$ita<-100*TbinIta$ita/ttlITA$V1
+TbinUna$una<-100*TbinUna$una/ttlUNA$V1
+TbinTnf$tnf<-100*TbinTnf$tnf/ttlTNF$V1
+
+joined2<-full_join(TbinIta,  TbinUna, by = "range",) %>%full_join(.,  TbinTnf, by = "range")
+
+
+j3<-melt(joined2, id.vars=c("range"))
+ggplot(j3,aes(x=as.numeric(range),y=value,fill=variable))+    geom_bar(position="dodge", stat="identity")+theme_classic()+xlab("Divergence")+ylab("Count")+ggtitle(candidate)
+ggsave("/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/analyses/DNApipeTE/ComparisonNewRepeatLibrary.CobsR.176.pdf")
+```
+

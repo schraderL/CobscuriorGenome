@@ -1,0 +1,175 @@
+---
+title: "Cobs.alpha.v2.1 TE island GO enrichment"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 2
+    collapsed: true
+    number_sections: true
+    df_print: paged
+  pdf_document: default
+---
+<STYLE TYPE="text/css">
+<!--
+  td{
+    font-family: Arial; 
+    font-size: 8pt;
+    padding:0px;
+    cellpadding="0";
+    cellspacing="0"
+  }
+  th {
+    font-family: Arial; 
+    font-size: 8pt;
+    height: 20px;
+    font-weight: bold;
+    text-align: right;
+    background-color: #ccccff;
+  }
+  table { 
+    border-spacing: 0px;
+    border-collapse: collapse;
+  }
+--->
+</STYLE>
+
+#bash
+```{bash}
+## Retrieve Functional annotations of TE island genes
+base=/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/analyses/GOenrichment/TEislands
+cd $base
+bedtools intersect -b $islands -a $gff |awk '{if ($3=="gene") print $0}'|perl -pe 's/.*ID=(.*?);.*/$1/g' > TEisland.genes.lst
+
+grep -f TEisland.genes.lst /Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/annotation/Cobs.alpha.v.2.1.geneCombined/Cobs.alpha.v.2.1.geneannotation.1.5/Cobs.alpha.v.2.1.geneannotation.1.5.functionalAnnotation/Cobs.alpha.v.2.1.geneannotation.1.5.interproFormat.tsv
+```
+
+
+
+# load environment steps
+```{r eval=FALSE, include=FALSE}
+#source("https://bioconductor.org/biocLite.R")
+#BioC("biocUpgrade")
+#install.packages("BiocManager")
+BiocManager::install("GO.db")
+BiocManager::install("topGO")
+
+#install.packages("tidyr")
+#install.packages("dplyr")
+library("topGO")
+library("GO.db")
+library("dplyr")
+library("tidyr")
+```
+
+### Read large input table
+```{r}
+functionalAnnotation<-read.csv("/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/annotation/Cobs.alpha.v.2.1.geneCombined/Cobs.alpha.v.2.1.geneannotation.1.5/Cobs.alpha.v.2.1.geneannotation.1.5.functionalAnnotation/Cobs.alpha.v.2.1.geneannotation.1.5.interproFormat.tsv",sep="\t",F)
+GO<-subset(functionalAnnotation,V14!="",select=c(V1,V14))
+colnames(GO)<-c("id","GOid")
+GO$id<-gsub("-mRNA.*","",GO$id)
+GO$GOid<-gsub("\\|",",",GO$GOid)
+library(plyr)
+all<-ddply(GO, .(id), summarize,
+    GOid=paste(unique(GOid),collapse=","))
+
+```
+
+### create topGO element for Cluster GO annotations
+```{r}
+
+scoID2go<-list()
+  for(i in 1:length(all$id)){
+  scoID2go[[i]]<-unlist(strsplit(as.character(all$GOid[i]),","))
+  names(scoID2go)[i]<-as.character(all$id[i])
+  }
+
+```
+
+### Prepare Objects for GO enrichment analysis
+```{r}
+
+scoNames.all<-names(scoID2go)
+#restrict gene space to all SCOs orthologs
+scoNames<-scoNames.all
+scoNames <- factor(scoNames)
+names(scoNames) <- scoNames
+
+```
+
+
+### Select Clusters of Interest from dataframe "all".
+```{r}
+# create a 0/1 matrix (interesting/not interesting)
+######################################
+TEislandGenes<-read.csv("/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/analyses/GOenrichment/TEislands/TEisland.genes.lst",F)
+
+OfInterest<-unlist(subset(all,id %in% TEislandGenes$V1,id))
+
+scoList <- factor(as.integer(scoNames %in% OfInterest))
+
+table(scoList)
+names(scoList) <- scoNames
+
+TEisSet<-subset(all,id %in% OfInterest)
+
+```
+
+
+```{r}
+# create object for Biological Process, Molecular Function and Cellular component:
+##################################################################################
+
+GOdata_MF <- new("topGOdata", ontology = "MF", allGenes = scoList, annot = annFUN.gene2GO, gene2GO = scoID2go)
+GOdata_BP <- new("topGOdata", ontology = "BP", allGenes = scoList, annot = annFUN.gene2GO, gene2GO = scoID2go)
+GOdata_CC <- new("topGOdata", ontology = "CC", allGenes = scoList, annot = annFUN.gene2GO, gene2GO = scoID2go)
+
+# Molecular Function
+####################
+resultFis_MF 	<- runTest(GOdata_MF, algorithm = "parentchild", statistic = "fisher")
+table_MF <- GenTable(GOdata_MF, parentChild = resultFis_MF, orderBy = "parentChild", ranksOf = "parentChild", topNodes = 200)
+
+# Biological Process
+####################
+resultFis_BP <- runTest(GOdata_BP, algorithm = "parentchild", statistic = "fisher")
+table_BP <- GenTable(GOdata_BP, parentChild = resultFis_BP, orderBy = "parentChild", ranksOf = "parentChild", topNodes = 200)
+
+
+# Cellular Component
+####################
+resultFis_CC <- runTest(GOdata_CC, algorithm = "parentchild", statistic = "fisher")
+table_CC <- GenTable(GOdata_CC, parentChild = resultFis_CC, orderBy = "parentChild", ranksOf = "parentChild", topNodes = 20)
+
+
+# filter out significant GO terms:
+###################################
+
+MF <- subset(table_MF, parentChild < 0.1)
+BP <- subset(table_BP, parentChild < 0.1)
+CC <- subset(table_CC, parentChild < 0.1)
+
+MF$ontology<-"MF"
+BP$ontology<-"BP"
+CC$ontology<-"CC"
+
+MF
+BP
+CC
+```
+
+### save results to file
+```{r}
+# Origins of social parasitism
+res<-rbind(MF,BP) %>% rbind(.,CC)
+outfile<-"/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/analyses/GOenrichment/TEislands/TEisland.GOenrichment.tsv"
+outfile2<-"/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/analyses/GOenrichment/TEislands/TEisland.GOenrichment.REVIGOready.tsv"
+write.table(res,outfile,quote=F,sep="\t",row.names = F)
+cat("# GO enrichment of genes located in TE islands\n",file=outfile)
+write.table(res, outfile,append=TRUE, quote=F,sep="\t",row.names=F)
+write.table(subset(res,parentChild<0.05,select=c(GO.ID,parentChild)), outfile2,quote=F,sep="\t",row.names=F)
+
+
+
+```
+
+
