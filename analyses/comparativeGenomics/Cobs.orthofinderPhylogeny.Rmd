@@ -24,7 +24,8 @@ tree$node.label[-1]<-round(as.numeric(tree$node.label[-1]),2)
 tree$tip.label<-gsub(".longestIsoform","",tree$tip.label)
 plot(tree)
 ape::nodelabels()
-
+tum<-phytools::force.ultrametric(tree)
+ape::write.tree(tum,file="/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/analyses/comparativeGenomics/Cobs.phylogeny.rerooted.ultrametric.tre")
 p<-ggtree(tree) + 
   geom_tiplab(align=T)+
  xlim_expand(c(0,.28), panel = "Tree") + theme_tree2()

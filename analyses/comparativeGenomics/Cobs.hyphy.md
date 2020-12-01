@@ -97,12 +97,12 @@ ls sets/*species2locus.tsv|parallel --nice 10 "awk -F \$'\t' 'FNR==NR { array[\$
 ls sets/*.cds|perl -pe 's/.*(OG[0-9]{7}).*/$1/g'|parallel --nice 10 prank -t=sets/{}.tre -d=sets/{}.lst.cds -o=sets/{}.aln -quiet -translate
 
 # trim and remove terminal stops
-ls sets/*best.pep.fas| parallel --nice 10 "pal2nal.pl {} {=s:.lst.aln.best.pep.fas:.lst.cds:;=} -nogap -nomismatch -output fasta > {=s:.lst.aln.best.pep.fas:.aln.trim:;=}"
+ls sets/*best.pep.fas|perl -pe 's/.*(OG[0-9]{7}).*/$1/g'| parallel --nice 10 "pal2nal.pl sets/{}.aln.best.pep.fas sets/{}.lst.cds -nogap -nomismatch -output fasta > sets/{}.aln.trim"
 
 ```
 
 ## run Hyphy ABSREL
 ```bash
 # run Hyphy ABSREL
-ls sets/*.tre|parallel --nice 10 '/global/projects/programs/source/hyphy-2.5.6/hyphy absrel --alignment {=s:.tre:.aln.trim:;=} --tree {}'  
+ls sets/*.aln.trim|perl -pe 's/.*(OG[0-9]{7}).*/$1/g'|parallel --nice 10 '/global/projects/programs/source/hyphy-2.5.6/hyphy absrel --alignment sets/{}.aln.trim --tree sets/{}.tre'
 ```
