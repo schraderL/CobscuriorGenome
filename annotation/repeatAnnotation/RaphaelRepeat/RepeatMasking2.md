@@ -1,4 +1,4 @@
-#TE annotation pipeline
+# TE annotation pipeline
 
 Used versions:
 >RepeatMasker version open-4.0.8 - Local, other versions problematic with version of TRF (analysis broke down near the end)
@@ -9,9 +9,9 @@ Used versions:
 >RepBase RELEASE 20181026;
 
 
-#Library prep
+# Library prep
 
-##Adding ArtTEdb (see above)
+## Adding ArtTEdb (see above)
 Download all fasta files from http://db.cbi.pku.edu.cn/arte/download.html to
 ```bash
 cd ~/Master/Library
@@ -19,8 +19,7 @@ cd ~/Master/Library
 cat *.fasta > ArtTEdb.fasta
 ```
 
-* **.fasta includes all fasta files downloaded from http://db.cbi.pku.edu.cn/arte/download.html
--> Delete all downloaded fasta files after cat*
+* \*.fasta includes all fasta files downloaded from http://db.cbi.pku.edu.cn/arte/download.html
 
 ```bash
 #Change the Format of the ArTEdb.fasta file so that RepeatMasker is able to read it
@@ -35,11 +34,12 @@ sed -i s@\\tUnknown@#Unknown@g ArtTEdb.fasta
 
 For the additional RepeatScout/PASTEClassifier sequences:
 -> copy the R-skript resulting out-files into one directory, then do:
+
 ```bash
 for f in *.txt ; do sed 's/^\([^acgt]\)/>\1/' $f > $f.fa; done
 for f in *.fa ; do tr "\t" "\n" < $f > $f.fasta ; done
 ```
-## PASTEClassifier and RepeatScout-run to find and classify de novo TE sequences
+## RepeatScout-run and PASTEClassifier to find and classify de novo TE sequences
 
 Create [PASTEClassifier.cfg](#PASTEClassifier.cfg) file with the following content in your working directory (change project name to $1 and project_dir to the appropiate path):
 
@@ -65,9 +65,9 @@ export PYTHONPATH=$REPET_PATH:$PYTHONPATH
 # add RepeatScout
 export PATH=$PATH:/global/projects/programs/source/RepeatScout-1
 # Define MYSQL settings
-export REPET_HOST=ebbsrv05
-export REPET_USER=schradel
-export REPET_PW=schr4d3l
+export REPET_HOST=
+export REPET_USER=
+export REPET_PW=
 export REPET_DB=REPET_schradel2
 #Data folder
 export datafolder="/global/homes/jg/r_stef04/REPET"
@@ -91,14 +91,14 @@ cut -f 1 -d " " $genome.repeats.fas.filtered_1|sed 's/=/./g'  > $genome.RSlib.fa
 PASTEClassifier.py -i $genome.RSlib.fa -C PASTEClassifier.cfg -p
 ```
 
-Step 2: REPETclassification
+# Merge repeat classifications
  - Combine the resulting PASTEClassifier Classif and $genome.RSlib.fa-files into fasta file with RepeatMasker-compatible headers.
  - First: Transform the fasta out-file of PASTEClassifier into a data frame using the the following bash command, then continue in R:
 ```bash
 awk '/^>/ {printf("%s%s\t",(N>0?"\n":""),$0);N++;next;} {printf("%s",$0);} END {printf("\n");}' <  <$genome.RSlib.fa> > $1.out.fa
 ```
 
-Run R-Skript REPETclassification.R over each respective $1.out.fa file. This skript contains the following steps:
+Run R-Skript **REPETclassification.R** over each respective $1.out.fa file. This skript contains the following steps:
  - For-loop to get the classification data (only) from the Classif-file.
  - Creation of new columns containing only actual classes, families and subfamilies (merging other data as well).
  - Changing all entries into the appropiate RepeatMasker-compatible classifications.
@@ -109,14 +109,14 @@ Run R-Skript REPETclassification.R over each respective $1.out.fa file. This skr
 End of R-Skript. Delete first superfluous line with rownames from final outfile, $1.txt.
 
 If necessary:
-Adding header ">" to future fasta
+  Adding header ">" to future fasta
 ```sed 's/^\([^acgt]\)/>\1/' $1.txt > $1.fa```
 Exchanging "tab"-Delimiter with New Line characters in HymRep3.txt
 ```tr "\t" "\n" < $1.fa > $1.fasta```
 
-Repeat for each genome. Concenate the resulting out-files into one big file.
+Repeat for each genome. Concatenate the resulting out-files into one big file.
 
-## Filter out all non-arthropod seqs out of RepBase
+# Filter out all non-arthropod seqs out of RepBase
 
 ```bash
 cd /global/homes/jg/r_stef04/Master/RepeatMasker/RepeatMasker/util
@@ -128,7 +128,7 @@ with RepBase RELEASE 20181026 only *(in /global/homes/jg/r_stef04/Master/RepeatM
 -> delete the command lines at the start from lib.lib
 -> rename to RepBaseArthro.fasta
 
-### Concatenating and cleaning library
+# Concatenating and cleaning library
 
 - Concenate with custom TE/Repeat-library consisting of arthropod sequences of RebBase, a de novo sequence RepeatScout library consisting of sequences of all analysed species and the hymenoptera sequences of the ArTEdb data base
 
@@ -144,9 +144,9 @@ sed -i s@#DNA/Helitron@#DNA/RC/Helitron@g CustomArTElib.fasta
 ```
 Manual control of whether classification is correct for all sequences, especially in regards to the ArTEdb.
 
-## Filtering Output file by removing protein-gene-similar sequences:
+# Filtering Output file by removing protein-gene-similar sequences:
 
-First: Extract and blast unknown sequences against annotated OR genes:
+## First: Extract and blast unknown sequences against annotated OR genes:
 ```bash
 awk '/^>/ {P=index($0,"#Unknown")!=0} {if(P) print} ' CustomArTELib.fa > UnclassSeq
 
@@ -154,7 +154,7 @@ makeblastdb -in /home/r/r_stef04/Master/Library/$1/$1.OR.fa -dbtype prot
 
 blastx -soft_masking false -evalue 1e-10 -best_hit_score_edge 0.05 -best_hit_overhang 0.25 -outfmt 7 -db Obir.OR.fa -query UnclassSeq -out ORObir
 ```
-Second: Blast against protein annotation of genome
+## Second: Blast against protein annotation of genome
 ```bash
 makeblastdb -in /home/r/r_stef04/Master/Library/Obir/Obir.OR.fa -dbtype prot
 
@@ -201,7 +201,7 @@ sed -i s@Unknowns@Unknown' '@g UC.fa
 sed -i s@' 'complemented@@g UC.fa
 ```
 - Delete everything in the headers of UC.fa after the classification:
- LINE[^\t]* -> LINE
+  >LINE[^\t]* -> LINE
  LTR[^\t]* -> LTR
  DNA[^\t]* -> DNA
  Retro[^\t]* -> Retro
@@ -212,23 +212,26 @@ sed -i s@' 'complemented@@g UC.fa
 - Use ListHeader.csv as input for the second part of TEclassClass -> output is ListHeader1.csv
 - Extract Headers of the original sequence file (here out.fa) and sort AddUnCl according to it manually (TEclass resorts these sequences and they have to be in the previous order for the next step to work)
 - Make two adjustments to the header lines before proceeding:
-	- Delete the '|TEclass' string in all headers of AddUnCl
-	- Replace 'Unknown/Unknown' with 'Unknown'
+	- Delete the `|TEclass` string in all headers of `AddUnCl`
+	- Replace `Unknown/Unknown` with `Unknown`
 - Use the now sorted AddUnCl as input for the third part of TEclassClass -> Output is ListHeader2.csv
-- Add the ListHeader2.csv headers according to the position of their sequences in out.fa to the RepeatScout headers. Since the latter are alphabetically sorted according to species name, there should be a single block between the sequences of two of those species in which the Unknown sequences of non-RepeatScout sequences can be found. The structure of the combined header out-file needs to be the same as that of the original out.fa-file. Name the resulting tab-delimited outfile SeqNames
-- Run UnknownToHeader.py against out.fa, which will replace its header names with the ones from SeqNames
+- Add the `ListHeader2.csv` headers according to the position of their sequences in out.fa to the RepeatScout headers. Since the latter are alphabetically sorted according to species name, there should be a single block between the sequences of two of those species in which the Unknown sequences of non-RepeatScout sequences can be found. The structure of the combined header out-file needs to be the same as that of the original out.fa-file. Name the resulting tab-delimited outfile SeqNames
+- Run `UnknownToHeader.py` against out.fa, which will replace its header names with the ones from SeqNames
+
 ```bash
 python UnknownToHeader.py -i out2.fa -r SeqNames -o FinalUnknownSeq
 ```
+
 -> Add the FinalUnknownSeq-file to FinalCustomLibrary (position irrelevant).
 
-## Complete Genome Annotation with concenated RepeatMaskerLib.fasta (RML.lib + REPET-Annotationen + ArTEdb)
+# RepeatMasker
+Complete Genome Annotation with concatenated RepeatMaskerLib.fasta (RML.lib + REPET-Annotationen + ArTEdb)
 ```bash
 cd ~/Master/RepeatMasker/RepeatMasker
 perl RepeatMasker -s -gff -a -excln -cutoff 250 -nolow -lib /home/r/r_stef04/Master/Library/CustomArTElib.fasta -pa 1 $species
 ```
-
-#### Further Filtering through Onecodetofindthemall:
+# Onecodetofindthemall
+Further Filtering through Onecodetofindthemall:
 
 ```bash
 mkdir $genomebase/$1/OneCode$1
