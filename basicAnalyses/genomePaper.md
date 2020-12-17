@@ -41,7 +41,7 @@ L75                         21
 islands=/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/annotation/Cobs.alpha.v.2.1.repeats/Cobs.alpha.v.2.1.TEislands/te_islands.bed
 # number of islands
 wc -l $islands
-#35
+#34
 # number of scaffolds containing islands
 cut -f 1 $islands|sort|uniq |wc -l
 # 27
@@ -85,7 +85,6 @@ scaffold21	300000
 scaffold13	284943
 scaffold18	236763
 scaffold17	216616
-scaffold9	90588
 scaffold20	87289
 scaffold22	41709
 ```
@@ -93,7 +92,7 @@ scaffold22	41709
 ```bash
 # sum of islands
 cat $islands |awk 'NF > 0 {sum += $3-$2} END {print sum/1000000}'
-#24.6648
+#24.5742
 ```
 
 ```bash
@@ -102,15 +101,15 @@ islands=/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/annotation
 gff=/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/annotation/Cobs.alpha.v.2.1.geneCombined/Cobs.alpha.v.2.1.geneannotation.1.5/Cobs.alpha.v.2.1.geneannotation.1.5.gff3
 
 bedtools intersect -wao -a $islands -b $gff |awk '{if ($6=="gene") print $0}'|wc -l
-#2118
+#2111
 bedtools intersect -v -b $islands -a $gff|awk '{if ($3=="gene") print $0}'|wc -l
 #18855
 ```
 
 ```R
 
-TEislandSize<-24.66
-TEislandGene<-2118
+TEislandSize<-24.56
+TEislandGene<-2111
 geneCount<-20966
 genomeSize<-193.05
 LDRgenesObs<-geneCount-TEislandGene
