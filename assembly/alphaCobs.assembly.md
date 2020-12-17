@@ -19,7 +19,7 @@ fastq=/global/homes/jg/schradel/data/assemblies/Cobs.alpha/FiltLong/alphaDNA.por
 ```
 
 
-#####canu.cfg
+##### canu.cfg
   * Only setting RAM and not specifying cores to request (no ```-pe smp 10```) in ```canu.cfg```.
     ```bash
     useGrid=remote
@@ -27,14 +27,14 @@ fastq=/global/homes/jg/schradel/data/assemblies/Cobs.alpha/FiltLong/alphaDNA.por
     gridOptions = "-l h_vmem=30G"
     ```
 
-### CANU contig assembly {#a1}
+### CANU contig assembly {# a1}
 The contig assembly produced by CANU is found at
 **```/global/homes/jg/schradel/data/assemblies/Cobs.alpha/assembly/CobsAlpha.contigs.fasta```**
 
 
 
 ![](alphaCobs.assembly.assets/alphaCobs.assembly-3a003cc3.pdf)
-*Figure 1: Nx plot for CANU contig assembly (produced with [QUAST](#QUAST))*
+*Figure 1: Nx plot for CANU contig assembly (produced with [QUAST](# QUAST))*
 
 ## Scaffolding using MinIonData with SSPACE
 We use the porechopped MinIon reads to scaffold the assembly.
@@ -48,12 +48,12 @@ genome=/global/homes/jg/schradel/data/assemblies/Cobs.alpha/assembly/CobsAlpha.c
 perl /global/homes/jg/schradel/software/SSPACE-LongRead_v1-1/SSPACE-LongRead.pl -c $genome -p $base/alphaDNA.porechopped.fa -b $base/CobsAlpha.scf1.fasta -t 10
 ```
 
-### minION-scaffolded assembly {#a2}
+### minION-scaffolded assembly {# a2}
 **```/global/homes/jg/schradel/data/assemblies/Cobs.alpha/scaffolding/minION.scaffolding/CobsAlpha.scf1.fasta/scaffolds.fasta```**
 
 
 ![](assets/alphaCobs.assembly-9da067d3.pdf)
-*Figure 2: Nx plot for [minION-scaffolded CANU assembly](#a2) (produced with [QUAST](#QUAST))*
+*Figure 2: Nx plot for [minION-scaffolded CANU assembly](# a2) (produced with [QUAST](# QUAST))*
 
 ## Scaffolding using 454 data with SSPACE
 
@@ -91,7 +91,7 @@ Lib20kb bwasw /global/homes/jg/schradel/data/Cardiocondyla/alpha.data/454/SRR156
 Lib08kb bwasw /global/homes/jg/schradel/data/Cardiocondyla/alpha.data/454/SRR1565733.1_1.fastq /global/homes/jg/schradel/data/Cardiocondyla/alpha.data/454/SRR1565733.1_2.fastq 8000 0.1 FF
 ```
 
-####Scaffolding with SSPACE
+#### Scaffolding with SSPACE
 We use ```SSPACE_Standard_v3.0.pl``` to further scaffold the MinIon-scaffolded assembly.
 see:
 * https://sites.google.com/site/104kananongstest/home/sta_command/sta_result/sspace
@@ -103,11 +103,11 @@ genome=/global/homes/jg/schradel/data/assemblies/Cobs.alpha/scaffolding/minION.s
 perl /global/homes/jg/schradel/software/SSPACE-STANDARD-3.0_linux-x86_64/SSPACE_Standard_v3.0.pl -l library.txt -s $genome -T 10 -b CobsAlpha.scf2 -p 1
 ```
 
-### 454-scaffolded assembly {#a3}
+### 454-scaffolded assembly {# a3}
 **```/global/homes/jg/schradel/data/assemblies/Cobs.alpha/scaffolding/454.scaffolding/CobsAlpha.scf2/CobsAlpha.scf2.final.scaffolds.fasta```**
 
 ![](assets/alphaCobs.assembly-cea274ad.pdf)
-*Figure 3: Nx plot for [454-scaffolded CANU assembly](#a3) (produced with [QUAST](#QUAST))*
+*Figure 3: Nx plot for [454-scaffolded CANU assembly](# a3) (produced with [QUAST](# QUAST))*
 
 # Gap filling with LR_closer
 see https://github.com/CAFS-bioinformatics/LR_Gapcloser
@@ -119,8 +119,8 @@ base=/global/homes/jg/schradel/data/assemblies/Cobs.alpha/gapfilling/
 cd $base/
 
 export PATH=$PATH:/global/homes/jg/schradel/software/LR_Gapcloser/src/
-#chmod u+x /global/homes/jg/schradel/software/LR_Gapcloser/src/*
-#gunzip -c ../../assembly/Cobs.alpha/CobsAlpha.correctedReads.fasta.gz > reads.corrected.fasta
+# chmod u+x /global/homes/jg/schradel/software/LR_Gapcloser/src/*
+# gunzip -c ../../assembly/Cobs.alpha/CobsAlpha.correctedReads.fasta.gz > reads.corrected.fasta
 ln -s /global/homes/jg/schradel/data/assemblies/Cobs.alpha/scaffolding/minION.scaffolding/alphaDNA.porechopped.fa .
 genome=/global/homes/jg/schradel/data/assemblies/Cobs.alpha/scaffolding/454.scaffolding/CobsAlpha.scf2/CobsAlpha.scf2.final.scaffolds.fasta
 bash LR_Gapcloser.sh -i $genome -l alphaDNA.porechopped.fa -s n
@@ -146,7 +146,7 @@ Lib200bp bwasw /global/homes/jg/merrbii/data/alpha_NGS/SRR1564444/SRR1564444_1.f
 ```
 
 
-####Scaffolding with SSPACE
+#### Scaffolding with SSPACE
 We use ```SSPACE_Standard_v3.0.pl``` to further scaffold the MinIon-scaffolded assembly.
 see:
 * https://sites.google.com/site/104kananongstest/home/sta_command/sta_result/sspace
@@ -158,11 +158,11 @@ genome=/global/homes/jg/schradel/data/assemblies/Cobs.alpha/gapfilling/Output/it
 perl /global/homes/jg/schradel/software/SSPACE-STANDARD-3.0_linux-x86_64/SSPACE_Standard_v3.0.pl -l library.txt -s $genome -T 10 -b CobsAlpha.scf3 -p 1
 ```
 
-### illumina-scaffolded assembly {#a5}
+### illumina-scaffolded assembly {# a5}
 **```/global/homes/jg/schradel/data/assemblies/Cobs.alpha/scaffolding/illumina.scaffolding/CobsAlpha.scf3/CobsAlpha.scf3.final.scaffolds.fasta```**
 
 ![Illumina](assets/alphaCobs.assembly-89effcd0.pdf)
-*Figure 4: Nx plot for [illumina-scaffolded CANU assembly](#a5) (produced with [QUAST](#QUAST))*
+*Figure 4: Nx plot for [illumina-scaffolded CANU assembly](# a5) (produced with [QUAST](# QUAST))*
 
 
 ## Polishing with ntedit
@@ -180,13 +180,13 @@ cd $base
 /global/homes/jg/schradel/software/ntEdit/ntedit-make ntedit draft=genome.fa reads=SRR1564444 k=64 cutoff=2 t=10
 ```
 
-### ntedit-polished assembly {#a6}
+### ntedit-polished assembly {# a6}
 **```/global/homes/jg/schradel/data/assemblies/Cobs.alpha/polishing/ntedit/genome_k64_edited.fa```**
 
 
 
 ## Polishing with pilon
-### Pilon round 1 {#a7}
+### Pilon round 1 {# a7}
 see https://denbi-nanopore-training-course.readthedocs.io/en/latest/polishing/pilon/mapping.html
 ```
 base=/global/homes/jg/schradel/data/assemblies/Cobs.alpha/polishing/pilon
@@ -208,7 +208,7 @@ java -Xmx20G -jar /global/homes/jg/schradel/software/pilon/pilon-1.23.jar --frag
 **```/global/homes/jg/schradel/data/assemblies/Cobs.alpha/polishing/pilon/pilon.fasta```**
 
 
-### Pilon round 2 {#a8}
+### Pilon round 2 {# a8}
 see https://denbi-nanopore-training-course.readthedocs.io/en/latest/polishing/pilon/mapping.html
 ```
 base=/global/homes/jg/schradel/data/assemblies/Cobs.alpha/polishing/pilon2
@@ -229,7 +229,7 @@ java -Xmx20G -jar /global/homes/jg/schradel/software/pilon/pilon-1.23.jar --frag
 #### Pilon round 2
 **```/global/homes/jg/schradel/data/assemblies/Cobs.alpha/polishing/pilon2/pilon.fasta```**
 
-### Pilon round 3 {#a9}
+### Pilon round 3 {# a9}
 
 ```
 base=/global/homes/jg/schradel/data/assemblies/Cobs.alpha/polishing/pilon3
@@ -252,7 +252,7 @@ java -Xmx20G -jar /global/homes/jg/schradel/software/pilon/pilon-1.23.jar --frag
 **```/global/homes/jg/schradel/data/assemblies/Cobs.alpha/polishing/pilon3/pilon.fasta```**
 
 
-### Pilon round 4 {#a10}
+### Pilon round 4 {# a10}
 
 ```
 base=/global/homes/jg/schradel/data/assemblies/Cobs.alpha/polishing/pilon4
@@ -274,7 +274,7 @@ java -Xmx20G -jar /global/homes/jg/schradel/software/pilon/pilon-1.23.jar --frag
 **```/global/homes/jg/schradel/data/assemblies/Cobs.alpha/polishing/pilon4/pilon.fasta```**
 
 
-##FINAL ASSEMBLY
+## FINAL ASSEMBLY
 ```
 cd /global/homes/jg/schradel/data/assemblies/Cobs.alpha/finalAssembly
 cat /global/homes/jg/schradel/data/assemblies/Cobs.alpha/polishing/pilon4/pilon.fasta|cut -f 1 -d "|" > Cobs.alpha.2.0.fa
@@ -292,11 +292,11 @@ cat /global/homes/jg/schradel/data/assemblies/Cobs.alpha/polishing/pilon4/pilon.
 # Quality Assessment
 see https://github.com/NBISweden/workshop-genome_assembly/wiki/Tools
 
-|Abbr|Assembly|type|N50|scaffolds|largest|total|N|[BUSCO n:4415](#BUSCO)|file|
+|Abbr|Assembly|type|N50|scaffolds|largest|total|N|[BUSCO n:4415](# BUSCO)|file|
 |-|-|-|-|-|-|-|-|-|-|
-|a1|canu|contigs|4.62 MB|291|9.92 MB|192.650 MB|0|C:72.9%[S:72.7%,D:0.2%],F:19.7%,M:7.4%|[/global/homes/jg/schradel/data/assemblies/Cobs.alpha/assembly/CobsAlpha.contigs.fasta](#a1)|
-|a2|SSPACE-long|scf|5.45 MB|192|13.08 MB|193.179 MB|529104|C:73.0%[S:72.8%,D:0.2%],F:19.6%,M:7.4%|[/global/homes/jg/schradel/data/assemblies/Cobs.alpha/scaffolding/minION.scaffolding/CobsAlpha.scf1.fasta/scaffolds.fasta](#a2)|
-|a3|SSPACE-454|scf|5.72 MB|156|13.08 MB|193.375 MB|724288|C:72.9%[S:72.7%,D:0.2%],F:19.7%,M:7.4%|[/global/homes/jg/schradel/data/assemblies/Cobs.alpha/scaffolding/454.scaffolding/CobsAlpha.scf2/CobsAlpha.scf2.final.scaffolds.fasta](#a3)|
+|a1|canu|contigs|4.62 MB|291|9.92 MB|192.650 MB|0|C:72.9%[S:72.7%,D:0.2%],F:19.7%,M:7.4%|[/global/homes/jg/schradel/data/assemblies/Cobs.alpha/assembly/CobsAlpha.contigs.fasta](# a1)|
+|a2|SSPACE-long|scf|5.45 MB|192|13.08 MB|193.179 MB|529104|C:73.0%[S:72.8%,D:0.2%],F:19.6%,M:7.4%|[/global/homes/jg/schradel/data/assemblies/Cobs.alpha/scaffolding/minION.scaffolding/CobsAlpha.scf1.fasta/scaffolds.fasta](# a2)|
+|a3|SSPACE-454|scf|5.72 MB|156|13.08 MB|193.375 MB|724288|C:72.9%[S:72.7%,D:0.2%],F:19.7%,M:7.4%|[/global/homes/jg/schradel/data/assemblies/Cobs.alpha/scaffolding/454.scaffolding/CobsAlpha.scf2/CobsAlpha.scf2.final.scaffolds.fasta](# a3)|
 |a4   |gapfilled   |scf   | 5.72 MB |156   |13.08 MB   | 193.376 MB  | 190005 |  C:73.0%[S:72.8%,D:0.2%],F:19.7%,M:7.3% |[/global/homes/jg/schradel/data/assemblies/Cobs.alpha/gapfilling/Output/iteration-3/gapclosed.fasta](#4)|
 |a5   |SSPACE-Illumina   |scf   |  5.99 MB |132   |  13.08 MB| 193.376 MB  | 190119  |  C:72.8%[S:72.6%,D:0.2%],F:19.8%,M:7.4% |   [/global/homes/jg/schradel/data/assemblies/Cobs.alpha/scaffolding/illumina.scaffolding/CobsAlpha.scf3/CobsAlpha.scf3.final.scaffolds.fasta](#5)|
 |a6   |ntEdit-polished   | scf  | 6.02 MB  | 132	 | 13.13 MB   |  194.146 MB | 190119  | C:97.3%[S:96.8%,D:0.5%],F:2.0%,M:0.7%  |  [/global/homes/jg/schradel/data/assemblies/Cobs.alpha/polishing/ntedit/genome_k64_edited.fa](#6)|
@@ -325,12 +325,12 @@ a10=/global/homes/jg/schradel/data/assemblies/Cobs.alpha/polishing/pilon4/pilon.
 ```
 cd /global/homes/jg/schradel/data/assemblies/Cobs.alpha/QC/BUSCO
 export PATH=$PATH:"/global/projects/programs/source/augustus-3.3.1/bin/"
-#cp -r /global/projects/programs/source/augustus-3.3.1/config/ .
+# cp -r /global/projects/programs/source/augustus-3.3.1/config/ .
 export AUGUSTUS_CONFIG_PATH=$(readlink -f ./config/)
 BUSCO_CONFIG_FILE=/global/projects/programs/source/busco/config/config.ini
 ```
 
-#### Run BUSCO {#BUSCO}
+#### Run BUSCO {# BUSCO}
 ```
 python /global/projects/programs/source/busco/scripts/run_BUSCO.py --in $a1 --out a1 --lineage /global/projects/programs/source/busco/hymenoptera_odb9/ --mode genome --cpu 1 -f
 python /global/projects/programs/source/busco/scripts/run_BUSCO.py --in $a2 --out a2 --lineage /global/projects/programs/source/busco/hymenoptera_odb9/ --mode genome --cpu 1 -f
@@ -346,7 +346,7 @@ python /global/projects/programs/source/busco/scripts/run_BUSCO.py --in $a10 --o
 ```
 
 
-#### QUAST {#QUAST}
+#### QUAST {# QUAST}
 ```
 cd /global/homes/jg/schradel/data/assemblies/Cobs.alpha/QC/QUAST/
 nice quast.py $a1 -o a1.quast.out --eukaryote
@@ -463,7 +463,7 @@ quast.py -t 3 -o $base -R $a1 $a6
 ```
 cd /global/homes/jg/schradel/data/minIonData/Alpha_29-10-2019/assembly/QC
 export PATH=$PATH:"/global/projects/programs/source/augustus-3.3.1/bin/"
-#cp -r /global/projects/programs/source/augustus-3.3.1/config/ .
+# cp -r /global/projects/programs/source/augustus-3.3.1/config/ .
 export AUGUSTUS_CONFIG_PATH="/global/homes/jg/schradel/data/minIonData/Alpha_29-10-2019/assembly/QC/config"
 BUSCO_CONFIG_FILE=/global/projects/programs/source/busco/config/config.ini
 ```
