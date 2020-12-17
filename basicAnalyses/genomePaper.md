@@ -133,6 +133,7 @@ ft<-fisher.test(matrix(c(TEislandGene,LDRgenesObs , TEgenesExp, LDRgenesExp), 2,
 ## Retrieve Functional annotations of TE island genes
 ```bash
 base=/Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/analyses/GOenrichment/TEislands
+cd $base
 bedtools intersect -b $islands -a $gff |awk '{if ($3=="gene") print $0}'|perl -pe 's/.*ID=(.*?);.*/$1/g' > TEisland.genes.lst
 
 grep -f TEisland.genes.lst /Users/lukas/sciebo/Projects/CardiocondylaGenome/CardioMinION/annotation/Cobs.alpha.v.2.1.geneCombined/Cobs.alpha.v.2.1.geneannotation.1.5/Cobs.alpha.v.2.1.geneannotation.1.5.functionalAnnotation/Cobs.alpha.v.2.1.geneannotation.1.5.interproFormat.tsv
